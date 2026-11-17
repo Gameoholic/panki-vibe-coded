@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { GOAL_KINDS, minutesWords, STREAK_PERIODS, weekStartOf, type Settings, type StreakRule } from "@panki/contracts";
+import { finishesAt, GOAL_KINDS, minutesWords, STREAK_PERIODS, weekStartOf, type Settings, type StreakRule } from "@panki/contracts";
 import { marksOf, settingsFrom, type SettingRow, type WatchMarkRow } from "../db";
 import { dayTalliesOf, streakStatesOf } from "../streaks";
 import { coverage } from "../tiles";
@@ -29,6 +29,8 @@ const HOUR = 3_600_000;
 const NEAR_TURNOVER_MS = HOUR;
 /** A gap on the video or the clock under this is the watcher's own ticking and the send's way to Panki, not a skip or a pause. */
 const SLACK_MS = 2_000;
+/** How a finish by end is read here: at the video's real end, since a Video end is the shared store's, which this copy of an account doesn't hold. */
+const FINISH_WORDS = "A finish by end is the page seeing the video play to its Video end, else its real end; read here at its real end (a Video end is everyone's, not in this copy).";
 /** The scan counts a gap as watching played on and not kept only from this much up: shorter ones are a short skip's noise. */
 const SCAN_LEAST_MS = 30_000;
 /** How long a viewer may have paused, on top of the time playing would take, for a finish to still be the same viewing. */
@@ -167,7 +169,7 @@ function dayReport(account: Account, day: Day) {
 
   console.log(`Day ${day} on the account's clock: ${momentOf(start)} to ${momentOf(end)} (${zone}${settings.timeZone ? "" : ", none kept: this machine's zone stands in"}, the day turns at ${settings.dayStartHour}:00)`);
   console.log("A stretch counts toward the day it reached Panki on, all its time there, whenever its watching began.");
-  console.log(`A finish by end is the page seeing the video play into its last ${settings.finishedWithinSec} s.`);
+  console.log(FINISH_WORDS);
 
   // ---------- Each stretch ----------
   console.log(`\nEach stretch kept that day (${ofDay.length}), in the order it came:`);
@@ -278,8 +280,7 @@ type Loss = { day: Day; videoId: string; stoppedAt: number; stoppedMs: number; l
  * by a jump (nothing lost), or too long after to tell (a later visit).
  */
 function finishGaps(account: Account) {
-  const { settings, dayOf, markRows, videos, kept } = account;
-  const windowMs = settings.finishedWithinSec * 1000;
+  const { dayOf, markRows, videos, kept } = account;
   const lost: Loss[] = [];
   const jumped: Loss[] = [];
   const unclear: Loss[] = [];
@@ -289,7 +290,7 @@ function finishGaps(account: Account) {
     const own = kept.filter((s) => s.videoId === m.videoId);
     const last = own.filter((s) => s.at <= m.at).at(-1);
     if (!v || !last) continue;
-    const endZone = v.lengthMs - windowMs;
+    const endZone = finishesAt(v.lengthMs);
     if (last.toMs >= endZone - SLACK_MS) continue;
     // The stretch open as the finish was said lands after it, going on from where the last one ended: nothing lost.
     const after = own.find((s) => s.at > m.at);
@@ -326,7 +327,7 @@ function playedOnGaps(account: Account): Loss[] {
  * the same. Said apart, never counted.
  */
 function possibleTails(account: Account): Loss[] {
-  const { settings, dayOf, markRows, videos, kept } = account;
+  const { dayOf, markRows, videos, kept } = account;
   const found: Loss[] = [];
   kept.forEach((s, i) => {
     const next = kept[i + 1];
@@ -334,7 +335,7 @@ function possibleTails(account: Account): Loss[] {
     if (!next || !v || next.videoId === s.videoId) return;
     // The video's last stretch of this viewing: nothing more of it before another video started.
     if (kept.slice(i + 1).find((o) => o.videoId === s.videoId && o.at - s.at < HOUR)) return;
-    const leftMs = (v.lengthMs - settings.finishedWithinSec * 1000 - s.toMs) / s.rate;
+    const leftMs = (finishesAt(v.lengthMs) - s.toMs) / s.rate;
     if (leftMs < SCAN_LEAST_MS) return;
     if (markRows.some((m) => m.videoId === s.videoId && m.kind === "finish" && m.at >= s.at && m.at <= next.at)) return;
     const clockMs = next.at - next.spentMs - s.at;
@@ -349,7 +350,7 @@ function scan(account: Account) {
   const days = [...new Set(kept.map((s) => dayOf(s.at)))].sort();
   const finishes = account.markRows.filter((m) => m.kind === "finish" && m.source === "end" && m.forgottenAt === null).length;
   console.log(`Every day kept, ${days[0] ?? "none"} to ${days.at(-1) ?? "none"}: ${days.length} days, ${kept.length} stretches, ${finishes} finishes by end.`);
-  console.log(`A finish by end is read with today's window, the last ${settings.finishedWithinSec} s: a finish made under another window reads a little off.`);
+  console.log(`${FINISH_WORDS} A finish made before a video's Video end was read, or under the old window before the end, reads a little off.`);
 
   const { lost: finishLost, jumped, unclear } = finishGaps(account);
   // A gap a finish already accounts for, kept again past it on a later visit, is the same loss: counted once.

@@ -52,7 +52,7 @@ Steps 1 to 8 are built and on main, pushed 2026-11-16 (e6713d4); the owner tries
 - [x] 6. **The Word pop-up's action** as an automation (first built as Explain for chosen words; now any of its actions, step 8).
 - [x] 7. **Two ways to transcribe**: Hybrid and the Mode setting gone; the menu's two actions; Start transcribing (every video) and Transcribe the entire video in the background (past N s watched), each named as the menu names it; the name Automations on every screen.
 - [x] 8. **A Flow and the owner's round of 2026-11-16**: Settings → Automations as a flow with its history; the standing line Hidden to begin with (since taken off); a transcript is finished; Ask Panki AI for one of the place's actions on the drawer and the pop-up, the drawer's as it opens; optional means optional; Downloading On / Off per device.
-- [ ] Later: the outro found by the AI, as an automation run once the transcript is finished (`AI.md` → The order).
+- [x] The outro found by the AI, as an automation run once the transcript is finished: When a transcript is finished, find where the video ends, On for every account (`docs/OUTRO.md` step 3, migration 60).
 
 ## Open
 

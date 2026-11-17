@@ -1,11 +1,13 @@
-/** @panki Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. */
+/** @panki Proofread and Find where the video ends on a video's page: runs, their calls, Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. */
 import {
   AI_PROVIDERS,
   APP_LANGUAGES,
+  FIND_VIDEO_END,
   PROOFREAD_AROUND,
   TRANSCRIBE_LANGUAGES,
   answeredCall,
   batchesOf,
+  endLinesOf,
   failedCall,
   modelWords,
   proofreadPieces,
@@ -13,6 +15,11 @@ import {
   proofreadVerdicts,
   proofreadWordOf,
   startCall,
+  transcriptFinished,
+  videoEndLines,
+  videoEndPieces,
+  videoEndPromptOf,
+  videoEndVerdicts,
   type AiCall,
   type AiMessageWhy,
   type AiTemplate,
@@ -22,7 +29,8 @@ import {
 } from "@panki/contracts";
 import { ceilingOf } from "@web/components/AiRun";
 import { clock, estimateWords } from "@web/words";
-import { askAiState, askProofread, askUndoFixes, type AiShown } from "../messages";
+import { askAiState, askFindVideoEnd, askProofread, askUndoFixes, type AiShown } from "../messages";
+import { WHY } from "../ui/TranscribeMenu";
 import type { TranscriptLine } from "./lines";
 import type { Transcriber } from "./transcriber";
 
@@ -50,22 +58,15 @@ export type ProofreadState = {
   lastRun: string | null;
   /** The presses that made a run: the head's spark blinks once for each. */
   burst: number;
+  /** Find where the video ends on its way from this page. */
+  finding: boolean;
 };
 
 /** The pieces only the page has (the video's title, channel, link and description), cut to Panki AI's limits: the strip's `videoPieces`. */
 type VideoPieces = (limits: PankiAi) => PromptPieces;
 
-const SAID = {
-  signedOut: "Sign in to Panki",
-  off: "Panki AI is off",
-  noKey: (provider: string) => `No key for ${provider}`,
-  editingOff: "Editing Panki subtitles is off",
-  empty: "Nothing transcribed yet",
-  working: "Panki AI is working",
-};
-
 export function createProofreader(transcriber: Transcriber, linesNow: () => readonly TranscriptLine[], videoPieces: VideoPieces) {
-  let state: ProofreadState = { ai: { known: false }, calls: [], going: null, lastRun: null, burst: 0 };
+  let state: ProofreadState = { ai: { known: false }, calls: [], going: null, lastRun: null, burst: 0, finding: false };
   let videoId: string | null = null;
   /** How many runs each template has had on this video: its calls named "Proofread", then "Proofread 2". */
   const ran = new Map<string, number>();
@@ -78,6 +79,8 @@ export function createProofreader(transcriber: Transcriber, linesNow: () => read
   async function readAi(fresh = false): Promise<AiShown | null> {
     const answer = await askAiState(fresh);
     set({ ai: answer.ok ? { known: true, shown: answer.ai, failure: null } : { known: true, shown: null, failure: answer.message } });
+    // The menu says only that they couldn't be read (`WHY.aiUnread`); what went wrong is the Log's.
+    if (!answer.ok) transcriber.note(`Panki AI's settings couldn't be read · ${answer.message}`);
     return answer.ok ? answer.ai : null;
   }
 
@@ -116,18 +119,84 @@ export function createProofreader(transcriber: Transcriber, linesNow: () => read
   /** A run split into its calls: each call's lines. */
   const callsOf = (lines: readonly TranscriptLine[]): TranscriptLine[][] => batchesOf(lines.map((line) => line.text)).map((batch) => batch.flatMap((i) => (lines[i] ? [lines[i]] : [])));
 
+  /** Why Panki AI can't be asked at all now, in the menu's words, or null when it can. */
+  function aiWhy(): string | null {
+    if (!state.ai.known) return null;
+    if (state.ai.failure) return WHY.aiUnread;
+    const shown = state.ai.shown;
+    if (!shown) return WHY.signedOut;
+    if (!shown.settings.aiOn) return WHY.aiOff;
+    if (shown.key === null) return WHY.noKey(AI_PROVIDERS[shown.settings.aiProvider].name);
+    return null;
+  }
   /** Why a run can't go now, in the menu's words, or null when it can. */
   function why(): string | null {
+    const ai = aiWhy();
+    if (ai !== null) return ai;
     if (!state.ai.known) return null;
-    if (state.ai.failure) return state.ai.failure;
-    const shown = state.ai.shown;
-    if (!shown) return SAID.signedOut;
-    if (!shown.settings.aiOn) return SAID.off;
-    if (shown.key === null) return SAID.noKey(AI_PROVIDERS[shown.settings.aiProvider].name);
-    if (!(transcriber.state().settings?.fixes ?? false)) return SAID.editingOff;
-    if (linesNow().length === 0) return SAID.empty;
-    if (state.going) return SAID.working;
+    if (!(transcriber.state().settings?.fixes ?? false)) return WHY.editingOff;
+    if (linesNow().length === 0) return WHY.nothingYet;
+    if (state.going) return WHY.proofreading;
     return null;
+  }
+
+  /**
+   * Why Find where the video ends can't go now, in the menu's words, or null when it can: Panki AI as it stands, the
+   * transcript not finished for a video of this length (ms), or Panki AI already finding it, here or for an
+   * automation. One already found isn't a why: it's asked again at a press, the new answer standing.
+   */
+  function endWhy(lengthMs: number | null): string | null {
+    const ai = aiWhy();
+    if (ai !== null) return ai;
+    const transcript = transcriber.state().transcript;
+    if (!transcript || transcript.covered.length === 0) return WHY.nothingYet;
+    if (lengthMs === null) return WHY.noLength;
+    if (!transcriptFinished(transcript.covered, lengthMs)) return WHY.unfinished;
+    if (state.finding || transcript.findingEnd === true) return WHY.findingEnd;
+    return null;
+  }
+  /** What Find where the video ends sends, as the server will fill it: the end of the transcript's lines, the video's own pieces, the account's two languages. */
+  function endPiecesFor(shown: AiShown, lengthMs: number): PromptPieces {
+    const { source, description } = videoPieces(shown.settings);
+    const lines = videoEndLines(endLinesOf(transcriber.state().transcript?.words ?? []), lengthMs);
+    return {
+      ...(source ? { source } : {}),
+      ...(description ? { description } : {}),
+      ...videoEndPieces(lines, lengthMs),
+      learningLanguage: TRANSCRIBE_LANGUAGES[shown.learningLanguage],
+      language: APP_LANGUAGES[shown.language],
+    };
+  }
+  /** The most Find where the video ends can cost, at the model's listed prices; null while it can't be said. */
+  function endCeiling(lengthMs: number): number | null {
+    const shown = state.ai.known ? state.ai.shown : null;
+    if (!shown) return null;
+    return ceilingOf(shown.settings, videoEndPromptOf(shown.settings), endPiecesFor(shown, lengthMs), [], {}, shown.settings.aiMaxAnswerTokens);
+  }
+
+  /**
+   * Find where the video ends: one call, a call of the head's, the Video end it found taken into the transcript (it's
+   * everyone's, beside it) and said in the Log with the line and why.
+   */
+  async function findEnd(lengthMs: number, why: AiMessageWhy): Promise<void> {
+    const shown = state.ai.known ? state.ai.shown : null;
+    const id = transcriber.state().transcript?.videoId ?? null;
+    if (!shown || !id || endWhy(lengthMs) !== null) return;
+    const pieces = endPiecesFor(shown, lengthMs);
+    const call = startCall({ label: FIND_VIDEO_END, why, settings: shown.settings, template: videoEndPromptOf(shown.settings), pieces, said: [], now: Date.now(), maxAnswerTokens: shown.settings.aiMaxAnswerTokens });
+    videoId = id;
+    set({ calls: [...state.calls, call], finding: true, burst: state.burst + 1 });
+    transcriber.note(`Panki AI finding where the video ends · ${modelWords({ provider: shown.settings.aiProvider, model: shown.settings.aiModel })} · up to ${estimateWords(call.ceilingMicros)}`);
+    const answer = await askFindVideoEnd({ videoId: id, lengthMs, pieces: { ...(pieces.source ? { source: pieces.source } : {}), ...(pieces.description ? { description: pieces.description } : {}) } });
+    // Another video meanwhile: what came back is that video's, and this page has moved on.
+    if (videoId !== id) return;
+    const finished = answer.ok ? answeredCall(call, { ...answer.found, cut: false }, Date.now(), videoEndVerdicts(answer.found)) : failedCall(call, answer.message, Date.now(), answer.unread);
+    set({ calls: state.calls.map((each) => (each === call ? finished : each)), finding: false });
+    if (answer.ok) {
+      transcriber.take(answer.transcript);
+      transcriber.note(`Panki AI found where the video ends · ${clock(answer.found.atMs / 1000)}, line ${answer.found.line} · ${answer.found.reason} · ${estimateWords(answer.found.costMicros)}`);
+    } else transcriber.note(`Panki AI couldn't find where the video ends · ${answer.message}`);
+    void readAi();
   }
 
   /** The most a run can cost at the model's listed prices: every call's prompt as it'll be filled and its answer at its limit. Null while it can't be said. */
@@ -236,12 +305,15 @@ export function createProofreader(transcriber: Transcriber, linesNow: () => read
     ceiling,
     run,
     undo,
+    endWhy,
+    endCeiling,
+    findEnd,
     /** Another video: its calls and its last run are that video's, gone with it. */
     video(id: string | null) {
       if (id === videoId) return;
       videoId = id;
       ran.clear();
-      set({ calls: [], going: null, lastRun: null });
+      set({ calls: [], going: null, lastRun: null, finding: false });
     },
     /** Whether any of the latest run's edits still stand in the transcript: Undo all is there while they do. */
     lastStanding(): boolean {

@@ -26,6 +26,7 @@ import {
   TEMPLATED_PLACE_IDS,
   TemplateId,
   TouchUpAsk,
+  VideoEndAsk,
   aiSent,
   answerOfWire,
   customOf,
@@ -97,7 +98,7 @@ function meaningsInOrder(answer: TouchUpAnswer): TouchUpAnswer {
   return meaning && !isError(meaning) ? { ...answer, meaning: { ...meaning, meanings: inOrder(meaning.meanings) } } : answer;
 }
 /** Each place's conversation as it's named where Max messages is reached: "That's the most messages a word's conversation takes." */
-const CONVERSATION_OF: Record<AiPlaceId, string> = { word: "a word's conversation", card: "a card's conversation", transcript: "a transcript's conversation" };
+const CONVERSATION_OF: Record<AiPlaceId, string> = { word: "a word's conversation", card: "a card's conversation", transcript: "a transcript's conversation", videoEnd: "Video end" };
 
 /**
  * Panki AI, for everyone: whether it's on, the provider and its model, whose key the provider has, and,
@@ -554,6 +555,29 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     }
     const { lines, words, ran } = done.done;
     res.json({ proofread: { lines, words, ...spent(ran) }, transcript: shared.transcript(videoId), ai: statusOf(res) });
+  });
+
+  /**
+   * Find where the video ends: where a video's own content ends, found from the end of its finished transcript and kept
+   * beside it for everyone (`AiCalls.findVideoEnd`). The page sends the video, its length as the player says it, and its
+   * link and description; the lines are the server's, from the store. A video that has one already is asked again, the
+   * new answer standing; one being found this moment is refused (`409`). No follow-ups: a run finds.
+   */
+  router.post("/video-end", async (req, res) => {
+    const parsed = VideoEndAsk.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That request isn't valid." } });
+      return;
+    }
+    const { videoId, lengthMs, pieces } = parsed.data;
+    const done = await calls.findVideoEnd(dbOf(res), signedIn(res).user.id, { videoId, lengthMs, pieces });
+    if (!done.ok) {
+      const { status, problem, message, unread } = done.refused;
+      refuse(res, status, problem, message, unread);
+      return;
+    }
+    const { line, reason, atMs, ran } = done.done;
+    res.json({ found: { line, reason, atMs, ...spent(ran) }, transcript: shared.transcript(videoId), ai: statusOf(res) });
   });
 
   return router;

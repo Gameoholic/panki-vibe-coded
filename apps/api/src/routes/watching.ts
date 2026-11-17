@@ -22,8 +22,6 @@ export function watchingRouter(dbOf: DbOf, auth: AuthDb, shared: Shared, now: ()
     return null;
   }
 
-  // When a video counts as finished is each account's own setting (`Settings.finishedWithinSec`, `routes/settings.ts`).
-
   // A batch sent again keeps nothing twice: each stretch's id is the extension's. Answered alike whether or not it was
   // kept, since with Video tracking off the extension has nothing to do about it.
   router.post("/", (req, res) => {

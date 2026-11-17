@@ -3147,6 +3147,36 @@
 .seek-end.is-end {
   left: 100%;
 }
+/* The Video end (SeekMark's `videoEnd`): a tick across the bar in its own colour, edged so it reads on any picture. The
+   element stands at the moment itself, no wider than a line, so its tip points exactly there; the tick is drawn
+   around it, and a wider strip either side takes the pointer. Dragged where it can be moved. */
+.seek-video-end {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 0;
+  pointer-events: auto;
+  touch-action: none;
+}
+.seek-video-end::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--videoEnd-size) / -2);
+  width: var(--videoEnd-size);
+  border-radius: 3px;
+  background: var(--videoEnd-colour);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theater) 55%, transparent);
+}
+.seek-video-end::after {
+  content: "";
+  position: absolute;
+  inset: -4px -7px;
+}
+.seek-video-end.is-movable {
+  cursor: ew-resize;
+}
 /* Where the video was stopped the last time (SeekMark's `stop`): not one more colour on the line but a shape of its own,
    to stand out, white in every theme as words on a picture are: a
    tick across the bar, and over it a tag with a clock and the time, a notch pointing down to the tick. A press on the

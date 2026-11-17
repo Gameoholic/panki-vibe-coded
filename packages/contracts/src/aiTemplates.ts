@@ -21,6 +21,8 @@ ${taggedOf("card")}`,
   // Proofread takes no messages after its run (AI step 6: a run edits, and asking further is running it again); its
   // templates keep the field every template has, the question bare.
   transcript: variableOf("question"),
+  // Video end's prompt is the admin's and takes no messages; the field every template has, the question bare.
+  videoEnd: variableOf("question"),
 };
 
 /**

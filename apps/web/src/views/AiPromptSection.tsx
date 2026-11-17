@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  ACTION_PLACE_IDS,
   ADMIN_PROMPT_PLACE_IDS,
   AI_PLACES,
   AI_PROVIDERS,
@@ -9,6 +10,7 @@ import {
   messagePartOf,
   variableOf,
   variablesIn,
+  type ActionPlaceId,
   type AdminPromptPlaceId,
   type PankiAiStatus,
 } from "@panki/contracts";
@@ -37,6 +39,7 @@ const WORDS = {
 
 /** Each place's prompt as it's edited, by place. */
 type Prompts = Record<AdminPromptPlaceId, string>;
+const isActionPlace = (place: AdminPromptPlaceId): place is ActionPlaceId => (ACTION_PLACE_IDS as readonly string[]).includes(place);
 const promptsOf = (status: PankiAiStatus): Prompts =>
   Object.fromEntries(ADMIN_PROMPT_PLACE_IDS.map((place) => [place, adminPromptOf(status.settings, place)])) as Prompts;
 const samePrompts = (a: Prompts, b: Prompts) => ADMIN_PROMPT_PLACE_IDS.every((place) => a[place] === b[place]);
@@ -57,7 +60,7 @@ type Props = {
 /**
  * The prompts that are the admin's for everyone (Touch up, steered), one per place: the word's, what opens every
  * conversation about a word pointed at, and the card's, about a card; each with its pieces, its rules, how each message is answered, and where
- * each account's User instructions go. Under each place's heading, its Prompt as a template's was: a `PromptField`, a
+ * each account's User instructions go; and Video end's, what finds where a video's content ends, a run with no messages. Under each place's heading, its Prompt as a template's was: a `PromptField`, a
  * quiet line while it has no `{User instructions}`, Reset to default, Panki's answer format folded under it (the shape is
  * Panki's whatever the prompt says); then Prompt context once, its variables going in at the caret of the prompt last
  * in use. Saved together by Save in the header, leaving unsaved asks first, as every editor that takes a while is; one
@@ -69,7 +72,7 @@ export function AiPromptSection({ status, onStatus, onSaveStatus, onGuard }: Pro
   const draft = history.present;
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const boxes = { word: useRef<PromptFieldHandle>(null), card: useRef<PromptFieldHandle>(null) } satisfies Record<AdminPromptPlaceId, unknown>;
+  const boxes = { word: useRef<PromptFieldHandle>(null), card: useRef<PromptFieldHandle>(null), videoEnd: useRef<PromptFieldHandle>(null) } satisfies Record<AdminPromptPlaceId, unknown>;
   /** The prompt a variable pressed goes into: the one last in use, the first to begin with. */
   const [last, setLast] = useState<AdminPromptPlaceId>(ADMIN_PROMPT_PLACE_IDS[0]);
 
@@ -125,6 +128,9 @@ export function AiPromptSection({ status, onStatus, onSaveStatus, onGuard }: Pro
       ) : null}
       {ADMIN_PROMPT_PLACE_IDS.map((place) => {
         const prompt = draft[place];
+        // A conversation's place (the word's, the card's) sends each message and the account's User instructions; a
+        // run's (Video end's) sends neither.
+        const talks = isActionPlace(place);
         const sendsInstructions = variablesIn(prompt).some((variable) => variable.piece === "instructions");
         return (
           <section key={place} className="panel-section" aria-labelledby={`ai-prompt-${place}-title`}>
@@ -141,14 +147,16 @@ export function AiPromptSection({ status, onStatus, onSaveStatus, onGuard }: Pro
                 onChange={(typed) => history.change({ ...draft, [place]: typed }, `prompt-${place}`)}
               />
             </div>
-            {sendsInstructions ? null : <p className="ai-prompt-note">{WORDS.noInstructions}</p>}
+            {talks && !sendsInstructions ? <p className="ai-prompt-note">{WORDS.noInstructions}</p> : null}
             {/* What Panki sends with every message, read-only, in plain view: the user's words, then Panki's own lines. */}
-            <div className="answer-parts-body">
-              <div className="answer-parts-shape">
-                <p className="answer-parts-title">{WORDS.messagePart}</p>
-                <pre className="answer-parts-message">{messagePartOf(place)}</pre>
+            {talks ? (
+              <div className="answer-parts-body">
+                <div className="answer-parts-shape">
+                  <p className="answer-parts-title">{WORDS.messagePart}</p>
+                  <pre className="answer-parts-message">{messagePartOf(place)}</pre>
+                </div>
               </div>
-            </div>
+            ) : null}
             <div className="add-actions add-actions-start">
               <Button id={`ai-prompt-${place}-reset`} disabled={isDefaultOf(place, prompt)} onClick={() => history.change({ ...draft, [place]: DEFAULT_ADMIN_PROMPTS[place] })}>
                 <Icon name="reset" />

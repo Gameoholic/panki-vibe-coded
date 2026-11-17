@@ -12,8 +12,11 @@ import {
   PankiAiResponse,
   TouchUpResponse,
   ProofreadResponse,
+  VideoEndResponse,
   type ProofreadAsk,
   type TranscriptUndo,
+  type VideoEndAsk,
+  type VideoEndMove,
   type TranscriptLineMark,
   type TouchUpAsk,
   type ExplainAsk,
@@ -304,9 +307,8 @@ export const panki = {
     return call(address, token, "/api/settings", json("PATCH", { timeZone }), (b) => SettingsResponse.parse(b).settings);
   },
   /**
-   * Some of the account's own settings changed; the settings after. The options page's Video counts as finished in its
-   * last (`finishedWithinSec`); never its old Video tracking switch, each browser's own now (`SettingsUpdate` leaves
-   * it out).
+   * Some of the account's own settings changed; the settings after (the header bar's Streak, the Streak reminder);
+   * never its old Video tracking switch, each browser's own now (`SettingsUpdate` leaves it out).
    */
   updateSettings: ({ address, token }: Door, patch: SettingsUpdate): Promise<Settings> =>
     call(address, token, "/api/settings", json("PATCH", patch), (b) => SettingsResponse.parse(b).settings),
@@ -381,6 +383,17 @@ export const panki = {
   /** Panki AI's edits taken back, a word's or a run's, one step each, for everyone. */
   undoFixes: ({ address, token }: Door, videoId: string, undo: TranscriptUndo): Promise<Transcript> =>
     call(address, token, `/api/transcripts/${id(videoId)}/undo`, json("POST", undo), (b) => TranscriptResponse.parse(b).transcript),
+  /** Find where the video ends, for everyone: refused as Proofread is; the Video end found and the transcript after. */
+  findVideoEnd: async ({ address, token }: Door, ask: VideoEndAsk): Promise<VideoEndResponse> => {
+    try {
+      return await call(address, token, "/api/ai/video-end", json("POST", ask), (b) => VideoEndResponse.parse(b));
+    } catch (e) {
+      throw refusedOf(e);
+    }
+  },
+  /** The Video end moved by hand, for everyone; the transcript after. */
+  moveVideoEnd: ({ address, token }: Door, videoId: string, move: VideoEndMove): Promise<Transcript> =>
+    call(address, token, `/api/transcripts/${id(videoId)}/end`, json("PUT", move), (b) => TranscriptResponse.parse(b).transcript),
 };
 
 /** A file's bytes from Panki, as they are: no answer to parse, only the file. */

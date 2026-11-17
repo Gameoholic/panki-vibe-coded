@@ -37,6 +37,7 @@ export const PROMPT_PIECE_IDS = [
   "wider",
   "requirements",
   "firstMessage",
+  "videoLength",
 ] as const;
 export const PromptPieceId = z.enum(PROMPT_PIECE_IDS);
 export type PromptPieceId = z.infer<typeof PromptPieceId>;
@@ -98,8 +99,9 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   // Once "Field", renamed so it's clear (account migration 42 rewrote every kept template).
   field: "Follow-up field",
   // Proofread's (AI step 6): the lines being proofread, numbered, and two lists of their words by line number, those a
-  // person edited last and those the engine was unsure of. Built from the stored transcript by the server alone
-  // (`proofread.ts` → `proofreadPieces`), never from text the page sends.
+  // person edited last and those the engine was unsure of; Video end's, the lines of the video's end, numbered, each with
+  // when it starts. Built from the stored transcript by the server alone (`proofread.ts` → `proofreadPieces`,
+  // `videoEnd.ts` → `videoEndPieces`), never from text the page sends.
   transcript: "Transcript",
   handEdited: "Edited by hand",
   unsure: "Unsure words",
@@ -117,6 +119,8 @@ export const PIECE_NAMES: Record<PromptPieceId, string> = {
   // Where a conversation's first message goes in the admin's prompt (`aiActions.ts` → `withFirstMessage`): put in by
   // Panki before the prompt is filled, never a value of its own.
   firstMessage: "First message",
+  // How long the video is, as its player says it (Video end's: what's after the last line is in it).
+  videoLength: "Video length",
 };
 /**
  * A piece's name from before it was renamed, still read as that piece, so a prompt saved with it fills as it did
@@ -149,6 +153,7 @@ export const PIECE_SOURCES: Record<PromptPieceId, PieceSource> = {
   wider: "video",
   requirements: "panki",
   firstMessage: "panki",
+  videoLength: "video",
 };
 
 /**

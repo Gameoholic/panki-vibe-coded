@@ -14,7 +14,7 @@
 
 ## Settled
 
-- **Generated content is allowed, marked and kept apart.** What Panki AI writes carries the spark and the AI's ink wherever it's shown, and is never mixed into what the owner, a dictionary or a video gave.
+- **Generated content is allowed, marked and kept apart.** What Panki AI writes carries the spark and the AI's ink wherever it's shown, and is never mixed into what the owner, a dictionary or a video gave. Video end isn't marked as Panki AI's (the owner, 2026-11-18).
 - **A value remembers its source**, and the mark follows the value. Edited by hand it stays the AI's until Unmark as Panki AI's. Duplicates compare only true values.
 - **The owner accepts before anything lands on a card.** Every proposal is Accept or Dismiss. Proofread's edits alone go in by themselves (a learner can't judge a mishearing), each undoable.
 - **One conversation for every place**: a composer (typed words, ticked actions, or both, typed and ticked while an answer comes), each message one call carrying the conversation so far, a reply and its parts, "Changed:" chips (and "Withdrew:" for a proposal taken back, itself a change), Try again; Stop in Send's place while a message the person sent is on its way, cutting it and the provider's call, never an automation's. Never saved; what's accepted onto a card is.
@@ -29,8 +29,8 @@
 - **The Explanation is optional**: Touch up leaves it empty, with a why, when the Meaning and the sentence already say it; so there are no per-field Touch up actions, and actions are one flat list.
 - **Explanation and Example sentences** are two fields the AI fills through the field mapping, always its own text, always in addition to Meaning.
 - **Cost before it runs**: "Up to $… (est.)" beside Send, a threshold under which nothing asks, and what it came to after. Every dollar is an estimate from listed prices.
-- **Metering now, billing later**: every paid call (AI, transcription, Forvo) is one usage row; credits and payments build on those rows.
-- **The model is the admin's pick** until billing brings a per-user choice.
+- **Metering now, billing later**: every paid call (AI, transcription, Forvo) is one usage row; credits and payments build on those rows (`docs/PUBLISH.md`).
+- **The model is the admin's pick**; who picks it once Panki is published is `docs/PUBLISH.md`'s question.
 - **Two languages, the account's**: Language (what Panki speaks, English alone for now) and Learning language.
 - **Text only.** No video to the model; what a model writes is text everywhere it goes.
 - **Prompt context is one registry**: the field mapping's pieces by the same names and sources, the subtitles around the moment and the video's description, shown as one list.
@@ -104,15 +104,12 @@ A new place or action follows these; one that can't is talked through first.
   - [x] 4. Explain in the same format: the admin's prompt, Grammar, Conjugation and Nuance as actions, the pop-up's conversation.
 - [x] **Automations**: automatic runs per card, video or pop-up, each with its cap; Proofread's automation, transcribing's own and downloading among them. The plan: `docs/RULES.md`, on main (e6713d4).
 - [x] **Touch up in Panki itself**: a card opened in a deck, the Field mapping moved onto the card type first. The plan: `docs/MAPPING.md` (the owner, 2026-11-17), both steps built, for the owner to try.
-- [ ] **The outro, found by the AI** (next, the owner, 2026-11-17): where a video's own content ends, so it counts as finished from there, marked on the seek bar; an automation run once the transcript is whole.
-- [ ] **Accounts**: sign-up, password reset, who may join, in place of `pnpm user:add`. Not AI work; after the outro, brainstormed and planned properly on its own (the owner, 2026-11-17).
-- [ ] **Credits, and the pricing with them**: everything metered paid from a balance per account, granted by an admin until billing; at zero, every paid button says so. One model for everyone, no model per action (the owner, 2026-11-17, after a talk with a friend); each action costs a fixed number of credits, not per model or per token, the admin perhaps customizing it. After Accounts, brainstormed and planned properly on its own. (The three marks as a setting: dropped, the owner, 2026-11-17.)
-- [ ] Later: **billing** (payment for credits).
+- [x] **The outro, found by the AI**: where a video's own content ends, its Video end, so it counts as finished from there, marked on the seek bar; an automation run once the transcript is finished. The plan: `docs/OUTRO.md`, its three steps built, for the owner to try.
+- [ ] **Panki AI told of cards already there** (after the outro, the owner, 2026-11-17, to talk through first): when a word is already a card (the drawer's "already in [deck], with the same Meaning"), those cards go along with the prompt as data, so Panki AI knows of them.
+- Accounts, credits, pricing, billing and the models' choice moved to `docs/PUBLISH.md`, the plan for publishing Panki (the owner, 2026-11-17). (The three marks as a setting: dropped, the owner, 2026-11-17.)
 
 ## Open
 
 - **Panki's answer format** under a prompt is confusing in every form tried. Someone writing a prompt must know the fixed shape Panki requires and what it does with each part. Its title is settled ("Panki's answer format – the AI must send the data back in this shape"); what's under it is postponed to later (the owner, 2026-11-15), Automations going first.
 - **Example sentences on the review card**: All as a list to begin with, proposed; one a review, rotating, the other choice.
 - **Example sentences already in Paragraph fields**: converted when the field's kind is changed, proposed.
-- **Automations or Credits**: where transcribing's move to each account lands.
-- **Credits**: what a credit is worth, and who pays for a transcript everyone shares.

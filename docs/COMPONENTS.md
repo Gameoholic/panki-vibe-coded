@@ -198,6 +198,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | type | `type.ts` | A card type and its fields, which kinds hold what, and what it demands of a card's values (`CardType`, `CardField`, `FieldKind`, `holdsFile`, `cardProblems`). |
 | unread | `unread.ts` | Why a Panki AI answer couldn't be used, said as Expected … Got … (`expectedGot`, `UNREAD_REASONS`, `issueWords`, `knobsBroken`). Never a label of whose rule it was. |
 | usage | `usage.ts` | The usage ledger as shapes: a paid call's kinds, costs and totals (`UsageKind`, `UsageTotals`, `UsageReport`, `soundCostMicros`). Writing a row is the API's alone. |
+| videoEnd | `videoEnd.ts` | Find where the video ends as shapes: its answer, Panki's check, what it's sent (`VideoEndShape`, `videoEndProblem`, `videoEndLines`, `videoEndPieces`, `VideoEndAsk`). |
 | watching | `watching.ts` | Video tracking and Save for later as shapes: stretches watched, a video's marks and glance, saved videos (`WatchBatch`, `VideoGlance`, `SavedVideo`). |
 | week | `week.ts` | The account's week, its one home: the weekdays (`WEEK_DAYS`, `WEEK_DAY_NAMES`) and the week a day falls in (`weekStartOf`, `placeInWeek`, `weekdaysInOrder`). |
 | wordAudio | `wordAudio.ts` | Where word audio comes from, the sources one registry, and the settings everyone shares (`WORD_AUDIO_SOURCES`, `WordAudio`, `DEFAULT_WORD_AUDIO`). |
@@ -239,7 +240,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | seekLook | `seekLook.ts` | How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`). |
 | storage | `storage.ts` | What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). |
 | subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |
-| proofreader | `transcribe/proofreader.ts` | Proofread on a video's page: its runs, their calls and Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |
+| proofreader | `transcribe/proofreader.ts` | Proofread and Find where the video ends on a video's page: runs, their calls, Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |
 | transcriber | `transcribe/transcriber.ts` | A video transcribed by an engine, live and whole, and its log (`createTranscriber`, `TranscribeState`, `logText`, `wayRuleOf`). Never a second reader of a video's words. |
 | Burst | `ui/Burst.tsx` | The Add button's burst as a card lands: a ring rippling out and dots flying off (`Burst`). Never a second celebration. |
 | ClipPlayer | `ui/ClipPlayer.tsx` | A clip on the card before it's a file, played from the page's own video (`ClipPlayer`). |
@@ -260,7 +261,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | ResumeOffer | `ui/ResumeOffer.tsx` | Going on from where a video was stopped, offered on the picture (`ResumeOffer`). Never a second drawing of the offer. |
 | SaveControl | `ui/SaveControl.tsx` | Save for later as a control of the player's bar (`SaveControl`). |
 | SavingMark | `ui/SavingMark.tsx` | How saving what's watched stands, an icon in the Panki panel's head, its words in a tip (`SavingMark`). |
-| SeekMark | `ui/SeekMark.tsx` | Panki on the player's seek bar: how far the transcript reaches, where cards came from, the clip (`SeekMark`, `ClipMark`). Never a second mark on the bar. |
+| SeekMark | `ui/SeekMark.tsx` | Panki on the player's seek bar: the transcript's reach, where cards came from, the clip, the Video end (`SeekMark`, `ClipMark`, `VideoEndMark`). Never a second mark on the bar. |
 | SpeedControl | `ui/SpeedControl.tsx` | The player's speed, changed among its own controls (`SpeedControl`). Never a second way of setting the speed on the page. |
 | Stamp | `ui/Stamp.tsx` | A moment of the video that can be typed over (`Stamp`). |
 | SubtitlesControl | `ui/SubtitlesControl.tsx` | The subtitles off and back on, as a control of the player's bar (`SubtitlesControl`). |

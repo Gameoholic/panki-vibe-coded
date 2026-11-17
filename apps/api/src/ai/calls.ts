@@ -5,10 +5,17 @@ import {
   APP_LANGUAGES,
   ProofreadShape,
   TRANSCRIBE_LANGUAGES,
+  VideoEndShape,
   aiModelOf,
   aiSent,
   ceilingMicros,
+  endLinesOf,
   lineTextOf,
+  transcriptFinished,
+  videoEndLines,
+  videoEndPieces,
+  videoEndProblem,
+  videoEndPromptOf,
   piecesAsSent,
   proofreadPieces,
   proofreadProblem,
@@ -39,7 +46,7 @@ import { AiError, PLAIN_ISSUE, safetyIdOf, type AiClient } from "./index";
  */
 
 /** Max answer length as each place's is called in Admin → Panki AI → Limits, for the failure that says to raise it. */
-const LIMIT_NAMES: Record<AiPlaceId, string> = { word: "Max answer length", card: "Max Touch up answer length", transcript: "Max Proofread answer length" };
+const LIMIT_NAMES: Record<AiPlaceId, string> = { word: "Max answer length", card: "Max Touch up answer length", transcript: "Max Proofread answer length", videoEnd: "Max answer length" };
 
 /**
  * A shape with one of Panki's rules on top: a rule broken is named in the issue, so the Log says which, as expected
@@ -83,6 +90,17 @@ export type Call<T> = {
    * since nothing came back to count. A message an automation sent has none: Stop never stops an automation.
    */
   signal?: AbortSignal;
+};
+
+/** A Video end found: the line named, by its number in the lines sent, why, and where that put it. */
+export type VideoEndDone = { line: number; reason: string; atMs: number; ran: Ran<unknown> };
+export type VideoEndAskCore = {
+  videoId: string;
+  /** The video's length as the player said it, or as the account's watching last read it. */
+  lengthMs: number;
+  /** The pieces only a page has (the video's link and description). */
+  pieces: PromptPieces;
+  before?: Call<unknown>["before"];
 };
 
 /** What a Proofread's lines came to: the lines it changed, by their number in the lines sent, and how many words. */
@@ -205,6 +223,42 @@ export function createAiCalls(shared: Shared, serverKeys: Readonly<Record<string
     return { ok: true, done: { lines: changed, words, template, ran: called.ran } };
   }
 
-  return { call, piecesFor, proofread };
+  /**
+   * Find where the video ends, everyone's: asked again of a video that has its Video end already (a press), the new
+   * answer standing as the latest placing; never twice at once for a video. The transcript must be finished, its lines
+   * read as they stand now; the end of them goes into the admin's prompt (`videoEndLines`, `videoEndPieces`), the
+   * answer is held to `videoEndProblem`, and the Video end is put where the line it names ends, kept beside the
+   * transcript with the line, why, the model and who asked. An automation passes over a video that has one (`rules.ts`).
+   */
+  async function findVideoEnd(db: Db, userId: string, ask: VideoEndAskCore): Promise<{ ok: true; done: VideoEndDone } | { ok: false; refused: Refused; costMicros: number }> {
+    const no = (message: string) => ({ ok: false as const, refused: { status: 409, problem: "gone" as const, message }, costMicros: 0 });
+    const transcript = shared.transcript(ask.videoId);
+    if (!transcriptFinished(transcript.covered, ask.lengthMs)) return no("The transcript isn't finished.");
+    const lines = videoEndLines(endLinesOf(transcript.words), ask.lengthMs);
+    if (lines.length === 0) return no("Nothing transcribed yet.");
+    if (!shared.findingEnd.start(ask.videoId)) return no("Panki AI is already finding where this video ends.");
+    try {
+      const settings = shared.getAi();
+      const pieces = piecesFor(db, { ...ask.pieces, ...videoEndPieces(lines, ask.lengthMs) }, settings);
+      const called = await call(settings, userId, {
+        place: "videoEnd",
+        prompt: aiSent(videoEndPromptOf(settings), pieces, [], {})[0] ?? "",
+        said: [],
+        maxTokens: settings.aiMaxAnswerTokens,
+        shape: ruled(VideoEndShape, (value) => ({ broken: videoEndProblem(value, lines.length) })),
+        ref: ask.videoId,
+        ...(ask.before ? { before: ask.before } : {}),
+      });
+      if (!called.ok) return called;
+      const { line, reason } = called.ran.value;
+      const atMs = lines[line - 1]?.endMs ?? ask.lengthMs;
+      shared.keepFoundEnd(ask.videoId, { atMs, line, reason: reason.trim(), model: called.ran.ranOn.model }, userId, now());
+      return { ok: true, done: { line, reason: reason.trim(), atMs, ran: called.ran } };
+    } finally {
+      shared.findingEnd.end(ask.videoId);
+    }
+  }
+
+  return { call, piecesFor, proofread, findVideoEnd };
 }
 export type AiCalls = ReturnType<typeof createAiCalls>;

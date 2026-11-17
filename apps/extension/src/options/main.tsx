@@ -20,7 +20,6 @@ import { Setting } from "@web/components/Setting";
 import { Swatches } from "@web/components/Swatches";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
-import { useSavedSoon } from "@web/hooks/useSavedSoon";
 import { hostPattern, originOf } from "../address";
 import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
@@ -477,32 +476,14 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
  * Video tracking, set here since the extension is what tracks: this browser's own (`watch/tracking.ts`), so some
  * devices can send while others don't. Turning it off asks first, saying what stops and what stays.
  */
-function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: () => void; door: Door | null }) {
+function VideoTracking({ store, onChanged }: { store: Stored; onChanged: () => void }) {
   const [asking, setAsking] = useState(false);
   const offAt = useRef<HTMLButtonElement>(null);
   const on = store.videoTracking;
-  /** How close to its end a video counts as finished, as Panki has it (the account's own); null until it's said, or signed out. */
-  const [finished, setFinished] = useState<number | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
   // Not settled yet (the worker couldn't reach Panki as it started): settled now, as the worker would.
   useEffect(() => {
     if (on === null) void videoTrackingOn().then(onChanged);
   }, [on, onChanged]);
-  const address = door?.address ?? null;
-  const token = door?.token ?? null;
-  useEffect(() => {
-    setFinished(null);
-    setFailure(null);
-    if (address === null || token === null) return;
-    let alive = true;
-    panki
-      .settings({ address, token })
-      .then((settings) => alive && setFinished(settings.finishedWithinSec))
-      .catch((e: unknown) => alive && setFailure(e instanceof Error ? e.message : "Couldn't reach Panki."));
-    return () => {
-      alive = false;
-    };
-  }, [address, token]);
   async function change(next: boolean) {
     await setVideoTracking(next);
     setAsking(false);
@@ -529,7 +510,6 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
         }
         why={VIDEO_TRACKING_WHY}
       />
-      {door && finished !== null ? <FinishedWithin door={door} saved={finished} off={on !== true} /> : null}
       {/* After the rows, never between them: the question hangs from the switch wherever it stands in the panel, and
           between two rows it would part them, taking their dividing line with it. */}
       {asking ? (
@@ -563,46 +543,7 @@ function VideoTracking({ store, onChanged, door }: { store: Stored; onChanged: (
           onGo={() => void change(false)}
         />
       ) : null}
-      {failure ? (
-        <p className="form-failure" role="alert">
-          {failure}
-        </p>
-      ) : null}
     </section>
-  );
-}
-
-/**
- * How close to its end a video played counts as finished: the account's own, kept on Panki
- * (`Settings.finishedWithinSec`), saved a moment after it's changed. Greyed while Video tracking is off, when nothing is marked finished.
- */
-function FinishedWithin({ door, saved, off }: { door: Door; saved: number; off: boolean }) {
-  const [current, patch, failure] = useSavedSoon<{ finishedWithinSec: number }>({ finishedWithinSec: saved }, async (change) => ({
-    finishedWithinSec: (await panki.updateSettings(door, change)).finishedWithinSec,
-  }));
-  return (
-    <Setting
-      id="finished-within"
-      label="Video counts as finished in its last"
-      control={
-        <NumberField
-          id="finished-within-sec"
-          label="Video counts as finished in its last, in seconds"
-          value={current.finishedWithinSec}
-          min={0}
-          max={600}
-          suffix="s"
-          disabled={off}
-          onChange={(finishedWithinSec) => patch({ finishedWithinSec })}
-        />
-      }
-    >
-      {failure ? (
-        <p className="form-failure" role="alert">
-          {failure}
-        </p>
-      ) : null}
-    </Setting>
   );
 }
 
@@ -910,7 +851,7 @@ function Options() {
           </div>
           <div className="options-tab" hidden={tab !== "videos"}>
             {/* Data tracking first: what's recorded of the videos watched. */}
-            <VideoTracking store={store} onChanged={refresh} door={door} />
+            <VideoTracking store={store} onChanged={refresh} />
             {/* After Data tracking: it's shown as a video turns finished, which Video tracking marks. */}
             <RecapPanel store={store} onChanged={refresh} />
             <Transcribing store={store} onChanged={refresh} />

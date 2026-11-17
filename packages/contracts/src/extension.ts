@@ -35,7 +35,10 @@ import { z } from "zod";
 // up answers it as rows (`ExamplesWire`), its value their JSON (`examples.ts`).
 // 15: what fills each field is the card type's (`CardField.fills`, `roles.ts`), set in Panki; 14 fills by its own per
 // deck, and a card type's would go unread.
-export const EXTENSION_PROTOCOL = 15;
+// 16: a video is finished at its Video end or its real end: `Settings.finishedWithinSec` and `WatchedVideo.finishedWithinMs`
+// are gone (15 would go on finishing in the last 20 s), and a rule can find where the video ends (`RULE_ACTIONS`
+// `findVideoEnd`), which 15 refuses in the settings it reads.
+export const EXTENSION_PROTOCOL = 16;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

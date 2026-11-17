@@ -5,8 +5,8 @@ import { PALETTE } from "@web/palette";
 
 /**
  * How Panki's marks on a video's own seek bar look, this browser's viewer's to set on the options page (YouTube → Seek
- * bar), each mark's colour and more: how far the transcript reaches, the cards taken from the video, and the open
- * clip. One registry of colours (or a colour of the viewer's own, from the wheel) and one of thicknesses, every mark
+ * bar), each mark's colour and more: how far the transcript reaches, the cards taken from the video, the open clip
+ * and the Video end. One registry of colours (or a colour of the viewer's own, from the wheel) and one of thicknesses, every mark
  * choosing from both. The shapes live here, apart from `storage.ts`, so a page's script carries no storage code; the worker hands them to the page with the transcript (`TranscribePrefs.seek`).
  */
 
@@ -100,6 +100,9 @@ export const SeekLook = z.object({
   // rest and over a suspended one, to be acted on from the video: thick, their words always standing, in a
   // highlighter's yellow to begin with; a look kept before it is given it.
   flagged: WordsLook.default({ shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
+  // Where the video's own content ends (`VideoEnd`), a tick across the bar with a grip to drag it: pink and medium to
+  // begin with, a colour no other mark starts in; a look kept before it is given it.
+  videoEnd: MarkLook.default({ shown: true, colour: "pink", size: "medium" }),
 });
 export type SeekLook = z.infer<typeof SeekLook>;
 /** Which mark is which, by its key in `SeekLook`. */
@@ -115,8 +118,8 @@ export type ApartMarkId = (typeof APART_MARK_IDS)[number];
  * As they stand to begin with: the transcript's thin white line, the cards a little thicker on it, each in its stage's
  * colour (orange when one colour is picked), the clip in
  * Panki's blue; the words in the decks thick and green, their words hidden; the suspended cards thick and red and the
- * flagged ones thick and yellow, their words always up. The transcript is white so a flagged card's yellow never lies
- * on a line of its own colour; a look already kept keeps the colours it has.
+ * flagged ones thick and yellow, their words always up; the Video end a pink tick. The transcript is white so a flagged
+ * card's yellow never lies on a line of its own colour; a look already kept keeps the colours it has.
  */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
   transcript: { shown: true, colour: "white", size: "thin" },
@@ -125,12 +128,13 @@ export const DEFAULT_SEEK_LOOK: SeekLook = {
   known: { shown: true, byStage: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
   suspended: { shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
   flagged: { shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
+  videoEnd: { shown: true, colour: "pink", size: "medium" },
 };
 
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */
 export function seekVars(look: SeekLook): Record<string, string> {
   const vars: Record<string, string> = {};
-  for (const id of ["transcript", "cards", "clip", "known", "suspended", "flagged"] as const satisfies readonly SeekMarkId[]) {
+  for (const id of ["transcript", "cards", "clip", "known", "suspended", "flagged", "videoEnd"] as const satisfies readonly SeekMarkId[]) {
     vars[`--${id}-colour`] = paintCss(look[id].colour);
     vars[`--${id}-size`] = `${MARK_SIZES[look[id].size].px}px`;
   }

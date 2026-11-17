@@ -4,6 +4,7 @@ import { ACTION_SECONDS_MAX, DEFAULT_ACTION_SECONDS, EXPLAIN_PARTS, ExplainPart 
 import { AiRanOn, PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
 import { Judgement } from "./judgement";
 import { FORMER_NAMES, PIECE_NAMES, PROMPT_PIECE_IDS, PromptPieceId } from "./pieces";
+import { VIDEO_END_TAIL_MS } from "./transcription";
 import { KNOB_BREACHES, expectedGot, knobsBroken } from "./unread";
 
 /**
@@ -52,7 +53,9 @@ export function pieceAbout(id: PromptPieceId, limits: PieceLimits): string {
     case "field":
       return "The field a message was sent from, by its name on the card";
     case "transcript":
-      return "The lines of Panki subtitles being proofread, numbered, each as it reads now";
+      return `The lines of Panki subtitles, numbered, each as it reads now: Proofread's, those being proofread; Video end's, the video's last ${VIDEO_END_TAIL_MS / 60_000} minutes, each with when it starts`;
+    case "videoLength":
+      return "How long the video is, as its player says it";
     case "handEdited":
       return "The words of those lines a person edited last, by line number";
     case "unsure":

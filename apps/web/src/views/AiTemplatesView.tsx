@@ -3,8 +3,8 @@ import {
   ACTION_PLACE_IDS,
   AI_ACTIONS,
   AI_PLACES,
-  AI_PLACE_IDS,
   AI_INSTRUCTIONS_MAX,
+  STEERED_PLACE_IDS,
   AI_STARTERS,
   NO_ACCOUNT_ACTIONS,
   TEMPLATED_PLACE_IDS,
@@ -78,7 +78,7 @@ const rowsKey = (place: AiPlaceId) => `rows:ai:${place}`;
 export function AiTemplatesTab({ ai, defaults, askOver, onAskOver, showCostOver, onShowCostOver, instructions, onInstructions, onOpen, onNew, onOpenAction, onNewAction, onArrange, onRestore }: Props) {
   useEffect(() => {
     if (!ai) return;
-    for (const place of AI_PLACE_IDS) rememberShape(rowsKey(place), isActionPlace(place) ? actionsOf(ai.actions, place).length : templatesOf(place, ai.templates).length);
+    for (const place of STEERED_PLACE_IDS) rememberShape(rowsKey(place), isActionPlace(place) ? actionsOf(ai.actions, place).length : templatesOf(place, ai.templates).length);
   }, [ai]);
 
   return (
@@ -109,7 +109,8 @@ export function AiTemplatesTab({ ai, defaults, askOver, onAskOver, showCostOver,
         {/* The word's and the card's prompts are the admin's: what the account steers both with is its standing message. */}
         <Instructions value={instructions} onChange={onInstructions} />
       </section>
-      {AI_PLACE_IDS.map((place) => (
+      {/* A place the account doesn't steer (Video end, the admin's prompt alone) has no panel here. */}
+      {STEERED_PLACE_IDS.map((place) => (
         <section key={place} className="panel" aria-labelledby={`ai-${place}-templates-title`}>
           {/* Its (?) plays the place at work, as the extension's panels play theirs, with the account's templates and costs. */}
           <ExplainedTitle name={AI_PLACES[place].name} titleId={`ai-${place}-templates-title`}>

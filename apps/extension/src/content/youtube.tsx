@@ -13,7 +13,7 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { bareOf, defaultTemplateOf, inEndZone, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type VideoRecap, type WatchedSpan, type WatchMarkSource } from "@panki/contracts";
+import { FIND_VIDEO_END, bareOf, defaultTemplateOf, inEnd, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type VideoRecap, type WatchedSpan, type WatchMarkSource } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { MESSAGE_WORDS, MessageAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
@@ -23,7 +23,7 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askState, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askState, askForget, askGlance, askLine, askLineMark, askMoveVideoEnd, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
 import { amendLocal, loadLocal, localNow, onLocal, useLocal } from "../local";
 import type { TranscribePrefs } from "../transcribe/prefs";
@@ -57,8 +57,8 @@ import { Recap, type RecapFace } from "../ui/Recap";
 import { EndTime } from "../ui/EndTime";
 import type { PieceLimits, VideoMore } from "../ui/Explain";
 import { SpeedControl } from "../ui/SpeedControl";
-import { SeekMark, markOf, type ClipMark, type Pinned } from "../ui/SeekMark";
-import { TranscribeMenu, type AiPart, type Seconds } from "../ui/TranscribeMenu";
+import { SeekMark, markOf, type ClipMark, type Pinned, type VideoEndMark } from "../ui/SeekMark";
+import { FindEndItem, TranscribeMenu, WHY, type AiPart, type Seconds } from "../ui/TranscribeMenu";
 import { OverLineEditor, StripEditor, type EditorActions, type EditorLine } from "../ui/TranscriptEditor";
 import type { ClipEnd, MoveBy, Tick } from "../ui/Trim";
 
@@ -504,17 +504,27 @@ const watcher = createWatcher({
 });
 
 /**
- * Whether the video on the page is finished, told by the strip's status chip: as Panki says when it opens, then as it's played here. Played into its last `withinMs` from before them, it's
- * finished, said to Panki at once and kept there as a flag, wherever the video goes after; the chip at the strip's head
- * says "Watching · 94%" until then and "Finished" after, and a press on it says the other, by hand. Null until Panki
- * has said, and while the account keeps no watching.
+ * Whether the video on the page is finished, told by the strip's status chip: as Panki says when it opens, then as it's
+ * played here. Played into its end (`endHere`) from before it, it's finished, said to Panki at once and kept there as a
+ * flag, wherever the video goes after; the chip at the strip's head says "Watching · 94%" until then and "Finished"
+ * after, and a press on it says the other, by hand. Null until Panki has said, and while the account keeps no watching.
  */
-type Finish = { videoId: string; finished: boolean; withinMs: number; percent: number | null };
+type Finish = { videoId: string; finished: boolean; percent: number | null };
 const finishHere = cell<Finish | null>(null);
 /**
- * Whether the video has been seen before its last `withinMs` on this visit: only then does reaching them finish it. A
- * video opened in its end isn't finished by itself, nor one the player still holds the last video's end for as the page
- * moves to the next, and one taken off by hand there waits until it's been before its end again.
+ * The video on the page's Video end, in ms, where its own content ends, as its transcript says (`Transcript.videoEnd`,
+ * everyone's); null for none (no transcript, or none found yet), when it's finished at its real end.
+ */
+function videoEndHere(): number | null {
+  const transcript = transcriber.state().transcript;
+  return transcript !== null && transcript.videoId === watching ? (transcript.videoEnd?.atMs ?? null) : null;
+}
+/** Whether the player is in the video's end: at or past its Video end, else at its real end (`inEnd`). */
+const inEndHere = (player: HTMLVideoElement): boolean => inEnd(player.currentTime * 1000, player.duration * 1000, videoEndHere());
+/**
+ * Whether the video has been seen before its end on this visit: only then does reaching it finish it. A video opened in
+ * its end isn't finished by itself, nor one the player still holds the last video's end for as the page moves to the
+ * next, and one taken off by hand there waits until it's been before its end again.
  */
 let seenBefore = false;
 /** A finish on its way to Panki, and when one that failed may be tried again. */
@@ -526,14 +536,14 @@ const FINISH_RETRY_MS = 10_000;
 function followFinish(player: HTMLVideoElement | null) {
   const now = finishHere.get();
   if (!now || now.videoId !== watching || !active().on || !player || player.readyState < 2 || !Number.isFinite(player.duration) || player.duration <= 0 || adPlaying()) return;
-  const inEnd = inEndZone(player.currentTime * 1000, player.duration * 1000, now.withinMs);
-  if (!inEnd) seenBefore = true;
+  const ending = inEndHere(player);
+  if (!ending) seenBefore = true;
   // Taken back before its end (a word in the recap pressed, the bar dragged), the video is being watched again: the recap goes.
-  if (!inEnd && recapped.get() !== null) recapped.set(null);
+  if (!ending && recapped.get() !== null) recapped.set(null);
   const percent = Math.min(100, percentOf(player.currentTime, player.duration));
   if (percent !== now.percent) finishHere.set({ ...now, percent });
   const played = player.ended || (!player.paused && !player.seeking);
-  if (!now.finished && inEnd && seenBefore && played && !finishing && performance.now() >= finishRetryAt) void sayFinished(true, "end");
+  if (!now.finished && ending && seenBefore && played && !finishing && performance.now() >= finishRetryAt) void sayFinished(true, "end");
 }
 
 /** Finished or not, said: on the chip at once, then to Panki, whose answer is what stands; a failure puts it back. */
@@ -542,7 +552,7 @@ async function sayFinished(finished: boolean, source: WatchMarkSource) {
   const was = finishHere.get();
   if (!id || !was || was.videoId !== id) return;
   // Taken off by hand where it stands, it isn't finished again until it's been before its end.
-  if (!finished && video && inEndZone(video.currentTime * 1000, video.duration * 1000, was.withinMs)) seenBefore = false;
+  if (!finished && video && inEndHere(video)) seenBefore = false;
   finishHere.set({ ...was, finished });
   finishing = true;
   const answer = await askWatchMark(id, finished ? "finish" : "unfinish", source);
@@ -554,7 +564,7 @@ async function sayFinished(finished: boolean, source: WatchMarkSource) {
     finishHere.set({ ...now, finished: was.finished });
     return;
   }
-  finishHere.set({ ...now, finished: answer.video.finished, withinMs: answer.video.finishedWithinMs });
+  finishHere.set({ ...now, finished: answer.video.finished });
   // Finished, Panki takes its save for later back: the bar's Save is asked again rather than told here.
   if (answer.video.finished) void readSaved();
   // Played into its end and so finished now, where it wasn't: this viewing's recap. Taken off by hand, it goes.
@@ -823,7 +833,7 @@ async function readSeen() {
   // Whether it's finished, as Panki has it; one being said right now is the chip's until Panki answers it.
   const had = finishHere.get();
   const same = had !== null && had.videoId === id;
-  finishHere.set(on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, withinMs: answer.video.finishedWithinMs, percent: same ? had.percent : null } : null);
+  finishHere.set(on ? { videoId: id, finished: same && finishing ? had.finished : answer.video.finished, percent: same ? had.percent : null } : null);
   // Nothing is noted, and nothing offered, while Panki is switched off altogether.
   watcher.video(id, notingWanted());
   if (first && on && stoppedAt !== null && modules.get().on) resumeAt(stoppedAt);
@@ -2278,6 +2288,10 @@ function App() {
   const offer = useSyncExternalStore(offered.subscribe, offered.get);
   const offerGoing = useSyncExternalStore(offerAway.subscribe, offerAway.get);
   const stop = stopMark();
+  /** The Video end being dragged on the seek bar, in seconds, until it's let go and kept; read through the ref as it's let go. */
+  const [endDrag, setEndDrag] = useState<{ videoId: string; at: number } | null>(null);
+  const endDragRef = useRef(endDrag);
+  endDragRef.current = endDrag;
   const [taking, setTaking] = useState<Taking | null>(null);
   const [turn, setTurn] = useState(0);
   // Where the words that are in the decks are said, for the seek bar: read off Panki's transcript, only while a mark that
@@ -2469,6 +2483,30 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tx.transcript, aiShown, ownTemplates],
   );
+  // Find where the video ends' "Up to", over the end of the transcript: once per transcript and length, not each frame.
+  const endLength = lengthHere();
+  const endCost = useMemo(
+    () => (aiShown && endLength !== null ? MESSAGE_WORDS.upTo(proofreader.endCeiling(endLength) ?? 0, aiShown.showCostOverMicros) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tx.transcript, aiShown, endLength],
+  );
+  /** Find where the video ends, pressed: run at once, or ask first when it can cost more than the account's Ask before a message is over. */
+  function pressFindEnd() {
+    if (!aiShown || endLength === null || proofreader.endWhy(endLength) !== null) return;
+    const micros = proofreader.endCeiling(endLength) ?? 0;
+    gate.press(aiShown.askOverMicros, "menu", micros, MESSAGE_WORDS.runFor(FIND_VIDEO_END, micros), () => void proofreader.findEnd(endLength, { kind: "pressed", action: FIND_VIDEO_END }), true);
+  }
+  /**
+   * Find where the video ends, as the menu's Panki AI part lists it: why it can't go (greyed: Panki AI finding it this
+   * moment, the transcript not finished); else, once the video has its Video end, where it is, pressed to ask again
+   * (the new answer standing, as every placing does); else its cost.
+   */
+  function findEndItem(): ReactNode {
+    const found = tx.transcript?.videoEnd ?? null;
+    const blocked = proofreader.endWhy(endLength);
+    const why = blocked ?? (found ? clock(found.atMs / 1000) : endCost);
+    return <FindEndItem disabled={blocked !== null} why={why} onPress={pressFindEnd} />;
+  }
   /** A press: run at once, or ask first when it can cost more than the account's Ask before a message is over. */
   function pressProofread(scope: ProofreadScope, why: AiMessageWhy, where: string, using: AiTemplate = proofTemplate) {
     if (!aiShown || proofreader.why() !== null) return;
@@ -2484,7 +2522,8 @@ function App() {
   /**
    * Panki AI's part of the Transcription menu (AI step 6): the question before a run over the account's threshold, the
    * head once it has run (every call of this video's, with Undo all while the latest run's edits stand), Proofread the
-   * entire video (its template arrow once the account has two Proofread templates), and Proofread a part.
+   * entire video (its template arrow once the account has two Proofread templates), Proofread a part, and Find where
+   * the video ends.
    */
   function proofreadPart(): AiPart {
     const blocked = proofWhy !== null;
@@ -2538,6 +2577,7 @@ function App() {
       head,
       headed: pr.calls.length > 0,
       whole,
+      end: findEndItem(),
       part: {
         disabled: blocked,
         why: null,
@@ -3079,6 +3119,32 @@ function App() {
   }
   /** The clip as it's marked on the player's seek bar, once it has both ends. */
   const clipMark: ClipMark | null = clip && clip.end !== null && !taking?.added ? { start: clip.start, end: clip.end, onMove: (which, to, by) => moveEnd(which, to, by), onSettle: (which) => hearCut(which) } : null;
+  /**
+   * The Video end as it's marked on the player's seek bar: the transcript's, everyone's, or where it's being dragged;
+   * movable while Editing Panki subtitles is on, as a word is. Let go, it's kept there for everyone and said in the Log.
+   */
+  const keptEnd = tx.transcript && tx.transcript.videoId === watching ? tx.transcript.videoEnd : null;
+  const dragging = endDrag !== null && endDrag.videoId === watching ? endDrag : null;
+  const endMark: VideoEndMark | null = keptEnd
+    ? {
+        at: dragging ? dragging.at : keptEnd.atMs / 1000,
+        movable: fixesOn,
+        onMove: (to) => {
+          if (watching) setEndDrag({ videoId: watching, at: duration === null ? to : Math.min(to, duration) });
+        },
+        onSettle: () => void settleEnd(),
+      }
+    : null;
+  async function settleEnd() {
+    const drag = endDragRef.current;
+    if (!drag) return;
+    const answer = await askMoveVideoEnd(drag.videoId, { atMs: Math.round(drag.at * 1000) });
+    if (answer.ok) {
+      transcriber.take(answer.transcript);
+      transcriber.note(`you moved the Video end to ${clock(drag.at)}`);
+    } else transcriber.note(`couldn't move the Video end · ${answer.message}`);
+    setEndDrag(null);
+  }
   /** The strip open as the editor (B). */
   const editing = editorOpen && showsTranscript && fixesOn;
   /** Nothing to show where the words would be: why, and the press that changes it when there is one. */
@@ -3158,7 +3224,7 @@ function App() {
                   ai={engineOn ? proofreadPart() : null}
                   editing={
                     engineOn && fixesOn
-                      ? { on: editorOpen, disabled: downloadingNow, why: downloadingNow ? "the entire video is coming in" : null, onToggle: () => (editorOpen ? setEditorOpen(false) : openEditor(null)) }
+                      ? { on: editorOpen, disabled: downloadingNow, why: downloadingNow ? WHY.wholeGoing : null, onToggle: () => (editorOpen ? setEditorOpen(false) : openEditor(null)) }
                       : null
                   }
                 />
@@ -3327,6 +3393,7 @@ function App() {
               if (video && stop !== null) video.currentTime = landing(stop);
               dismissOffer();
             }}
+            videoEnd={endMark}
           />
         ) : null,
         seek.ground,

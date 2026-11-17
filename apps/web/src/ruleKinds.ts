@@ -239,6 +239,7 @@ export const TRIGGER_ICONS: Record<RuleTriggerId, IconName> = {
 };
 export const ACTION_ICONS: Record<RuleActionId, IconName> = {
   proofread: "check",
+  findVideoEnd: "flag",
   transcribe: "lead",
   transcribeWhole: "download",
   download: "downloaded",

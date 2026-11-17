@@ -11,6 +11,7 @@ import {
   TranscriptLineFix,
   TranscriptLineMark,
   TranscriptUndo,
+  VideoEndMove,
   VideoId,
   WholeAsk,
   type EngineId,
@@ -254,6 +255,24 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
       res.status(404).json({ error: { message: "That line isn't in the transcript any more." } });
       return;
     }
+    res.json({ transcript: shared.transcript(videoId) });
+  });
+
+  // The Video end moved by hand, dragged on the seek bar: everyone's, like an edit, and held to the same switch. Only one
+  // found can be moved; the placing before stays, a row of its own.
+  router.put("/:videoId/end", (req, res) => {
+    const videoId = videoOf(req, res);
+    if (!videoId || fixesOff(res)) return;
+    const parsed = VideoEndMove.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: { message: "That isn't a moment of the video." } });
+      return;
+    }
+    if (shared.videoEnd(videoId) === null) {
+      res.status(404).json({ error: { message: "This video's end hasn't been found." } });
+      return;
+    }
+    shared.moveVideoEnd(videoId, parsed.data.atMs, signedIn(res).user.id, now());
     res.json({ transcript: shared.transcript(videoId) });
   });
 

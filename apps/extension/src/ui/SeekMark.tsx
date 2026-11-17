@@ -1,8 +1,9 @@
-/** @panki Panki on the player's seek bar: how far the transcript reaches, where cards came from, the clip (`SeekMark`, `ClipMark`). Never a second mark on the bar. */
+/** @panki Panki on the player's seek bar: the transcript's reach, where cards came from, the clip, the Video end (`SeekMark`, `ClipMark`, `VideoEndMark`). Never a second mark on the bar. */
 import { Fragment, useEffect, useRef, useState, type CSSProperties, type HTMLAttributes, type PointerEvent, type SyntheticEvent } from "react";
 import type { Stretch, VideoCard } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
+import { Tip } from "@web/components/Tip";
 import { clock } from "@web/words";
 import type { KnownMoment } from "../capture/known";
 import { stamp } from "../capture/words";
@@ -15,6 +16,21 @@ import type { ClipEnd, MoveBy } from "./Trim";
  * cards are, or one a flagged card is, apart, else the words in the decks').
  */
 export type Pinned = { of: "cards" | ApartMarkId; card: VideoCard } | { of: "known"; mark: "known" | ApartMarkId; said: KnownMoment };
+
+/**
+ * The Video end as it's marked on the bar (`VideoEnd`): where the video's own content ends, in seconds, and, where it
+ * can be moved (Editing Panki subtitles on), what dragging it does. Never who put it there: it isn't marked as Panki AI's.
+ */
+export type VideoEndMark = {
+  at: number;
+  movable: boolean;
+  /** Dragged to here, in seconds: drawn there while it's held. */
+  onMove: (to: number) => void;
+  /** Let go where it is: kept there, for everyone. */
+  onSettle: () => void;
+};
+/** How far above the tick's top its tip points, in px: clear of the bar, under the cards' words. */
+const VIDEO_END_TIP = -10;
 
 /** The open clip as it's marked on the bar: its two ends, and what pulling one does. */
 export type ClipMark = {
@@ -55,6 +71,8 @@ type Props = {
   stop?: number | null;
   /** The tag pressed: the video goes there. */
   onStop?: () => void;
+  /** The Video end, where the video's own content ends, with what dragging it does; null for none (no transcript, or none found). */
+  videoEnd?: VideoEndMark | null;
 };
 
 const ENDS: Record<ClipEnd, string> = { start: "Where the clip starts", end: "Where the clip ends" };
@@ -149,9 +167,12 @@ function layPins(all: readonly Pinned[], length: number, width: number): Pin[] {
  * mark doesn't snap to the card, the words doing that job. Only the pins and the clip's two ends take a press.
  * Everywhere else on the bar a press goes through to the player, which seeks as ever.
  */
-export function SeekMark({ length, covered, working, cards, clip, inDecks = [], look, hover, onGo, onReach, onPeek, stop = null, onStop }: Props) {
+export function SeekMark({ length, covered, working, cards, clip, inDecks = [], look, hover, onGo, onReach, onPeek, stop = null, onStop, videoEnd = null }: Props) {
   const whole = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<ClipEnd | null>(null);
+  /** The Video end being dragged, and whether a mouse rests on it (its tip). */
+  const [endHeld, setEndHeld] = useState(false);
+  const [endTip, setEndTip] = useState(false);
   const [width, setWidth] = useState(0);
   const known = Number.isFinite(length) && length > 0;
   // Measured afresh whenever the bar is drawn again: nothing is drawn while the video's length isn't known (a page
@@ -230,6 +251,44 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
         if (held !== which) return;
         setHeld(null);
         mark.onSettle(which);
+      },
+    };
+  }
+
+  /**
+   * The Video end's tick and grip: dragged where it can be moved (held by the pointer as the clip's ends are, so the
+   * player never seeks under it), let go to keep it; a mouse resting on it, or holding it, says "Video end" and its
+   * time, as the other marks say theirs. Where it can't be moved it only says so.
+   */
+  function endGrip(mark: VideoEndMark): HTMLAttributes<HTMLSpanElement> {
+    return {
+      className: `seek-video-end ${mark.movable ? "is-movable" : ""}`.trim(),
+      role: mark.movable ? "slider" : "img",
+      "aria-label": "Video end",
+      ...(mark.movable
+        ? { "aria-orientation": "horizontal" as const, "aria-valuemin": 0, "aria-valuemax": Math.round(length * 100) / 100, "aria-valuenow": Math.round(mark.at * 100) / 100, "aria-valuetext": stamp(mark.at) }
+        : {}),
+      onPointerEnter(e: PointerEvent<HTMLSpanElement>) {
+        if (e.pointerType === "mouse") setEndTip(true);
+      },
+      onPointerLeave() {
+        setEndTip(false);
+      },
+      onPointerDown(e: PointerEvent<HTMLSpanElement>) {
+        if (!mark.movable || e.button !== 0) return;
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setEndHeld(true);
+      },
+      onPointerMove(e: PointerEvent<HTMLSpanElement>) {
+        if (!endHeld) return;
+        const to = timeAt(e.clientX);
+        if (to !== null) mark.onMove(to);
+      },
+      onLostPointerCapture() {
+        if (!endHeld) return;
+        setEndHeld(false);
+        mark.onSettle();
       },
     };
   }
@@ -325,6 +384,16 @@ export function SeekMark({ length, covered, working, cards, clip, inDecks = [], 
           <span {...grip(clip, "start")} />
           <span {...grip(clip, "end")} />
         </div>
+      ) : null}
+      {/* Where the video's own content ends: a tick across the bar in its colour, over the rest, a grip to drag it. */}
+      {videoEnd && look.videoEnd.shown && videoEnd.at > 0 && videoEnd.at <= length ? (
+        <span {...endGrip(videoEnd)} style={{ left: `${share(videoEnd.at)}%` }}>
+          {endTip || endHeld ? (
+            <Tip x={0} y={VIDEO_END_TIP}>
+              {`Video end · ${clock(videoEnd.at)}`}
+            </Tip>
+          ) : null}
+        </span>
       ) : null}
     </div>
   );

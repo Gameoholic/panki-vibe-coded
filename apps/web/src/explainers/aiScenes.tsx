@@ -26,7 +26,7 @@ import {
   startConversation,
   tokenCostMicros,
   cardPromptOf,
-  type AiPlaceId,
+  type SteeredPlaceId,
   type AiCall,
   type AiTemplate,
   type AiVerdict,
@@ -84,13 +84,13 @@ const WORD = { term: IN_DECKS.words, reading: "きっさてん", pitch: 0 };
 /** Its meanings in the examples' dictionary, as the pop-up lists them and `{Meaning}` numbers them. */
 const MEANINGS = ["coffee shop; café", "tearoom; tea parlor", "teahouse (for the tea ceremony)"] as const;
 /** What the made-up calls took, in the provider's tokens: what Details and the head's cost say. */
-const TOKENS: Record<AiPlaceId, { input: number; output: number }> = {
+const TOKENS: Record<SteeredPlaceId, { input: number; output: number }> = {
   word: { input: 1_400, output: 320 },
   card: { input: 1_900, output: 240 },
   transcript: { input: 1_300, output: 180 },
 };
 /** The answer limit a made-up call is held to, as the server holds a real one of the place's. */
-const ANSWER_LIMIT: Record<AiPlaceId, (settings: PankiAi) => number> = {
+const ANSWER_LIMIT: Record<SteeredPlaceId, (settings: PankiAi) => number> = {
   word: (s) => s.aiMaxAnswerTokens,
   card: (s) => s.aiMaxTouchUpTokens,
   transcript: (s) => proofreadTokens(EXAMPLE_TRANSCRIPT.length, s.aiMaxProofreadTokens),
@@ -112,7 +112,7 @@ function standing(ai: PankiAiStatus | null): { settings: PankiAi; own: readonly 
  * and, where Details list it, what it said (`said`: its verdicts and its answer as it came).
  */
 function madeUpCall(
-  place: AiPlaceId,
+  place: SteeredPlaceId,
   template: Pick<AiTemplate, "name" | "prompt" | "followUp">,
   settings: PankiAi,
   pieces: PromptPieces,
@@ -710,11 +710,11 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
   );
 }
 
-/** Each place's explainer, one entry each: a new place is a scene here. */
-const AI_SCENES: Record<AiPlaceId, (props: SceneProps) => ReactElement> = { word: ExplainScene, card: TouchUpScene, transcript: ProofreadScene };
+/** Each place's explainer that Settings → Panki AI shows, one entry each: a new place an account steers is a scene here. */
+const AI_SCENES: Record<SteeredPlaceId, (props: SceneProps) => ReactElement> = { word: ExplainScene, card: TouchUpScene, transcript: ProofreadScene };
 
 /** What a place's (?) on Settings → Panki AI plays. */
-export function AiScene({ place, ...props }: SceneProps & { place: AiPlaceId }) {
+export function AiScene({ place, ...props }: SceneProps & { place: SteeredPlaceId }) {
   const Scene = AI_SCENES[place];
   return <Scene {...props} />;
 }

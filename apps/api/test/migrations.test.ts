@@ -266,8 +266,8 @@ test("58 adds Transcribe the entire video at the end of a kept list once, the re
     assert.equal(added.do, "transcribeWhole");
     assert.equal(added.on, true);
     assert.deepEqual(rulesLogged(db), [{ key: "rules", fromValue: JSON.stringify(kept), toValue: value, at: NOW }]);
-    // Run again, nothing more.
-    migrate(db, NOW);
+    // Run again, nothing more (up to itself: a later step may add a rule of its own, as 60 does).
+    migrate(db, NOW, 58);
     assert.equal(rulesOf(db), value);
     assert.equal(rulesLogged(db).length, 1);
   }
@@ -310,4 +310,48 @@ test("59 gives every field a Field mapping of none and touches nothing kept befo
     before.card_fields?.map((row) => [null, row]),
   );
   for (const table of Object.keys(before).filter((t) => t !== "card_fields")) assert.deepEqual(after[table], before[table], `${table} as it was`);
+});
+
+test("60 adds Find where the video ends at the end of a kept list once, the rest as it was, and logs it", () => {
+  const whole = { id: "transcribeWhole", on: true, when: "videoPlays", do: "transcribeWhole", maxMinutes: 90, watchedSeconds: 5 };
+  for (const kept of [[], [whole], [whole, { id: "mine", on: false, when: "transcriptWhole", do: "proofread" }]]) {
+    const db = atStep(59, { rules: kept });
+    migrate(db, NOW, 60);
+    const value = rulesOf(db);
+    assert.ok(value !== undefined);
+    const rules = JSON.parse(value) as Row[];
+    assert.equal(rules.length, kept.length + 1);
+    assert.equal(JSON.stringify(rules.slice(0, kept.length)), JSON.stringify(kept));
+    const added = rules[kept.length] as Row;
+    assert.equal(added.id, "findVideoEnd");
+    assert.equal(added.when, "transcriptWhole");
+    assert.equal(added.do, "findVideoEnd");
+    assert.equal(added.on, true);
+    assert.deepEqual(rulesLogged(db), [{ key: "rules", fromValue: JSON.stringify(kept), toValue: value, at: NOW }]);
+    // Run again, nothing more.
+    migrate(db, NOW, 60);
+    assert.equal(rulesOf(db), value);
+    assert.equal(rulesLogged(db).length, 1);
+  }
+});
+
+test("60 leaves a list that already finds where the video ends, a full one, one that isn't a list, and an account that kept none", () => {
+  const full = Array.from({ length: 30 }, (_, i) => ({ id: `rule-${i}`, on: true, when: "videoSaved", do: "download" }));
+  for (const kept of [
+    JSON.stringify([{ id: "other", on: false, when: "transcriptWhole", do: "findVideoEnd" }]),
+    JSON.stringify([{ id: "findVideoEnd", on: false, when: "transcriptWhole", do: "proofread" }]),
+    JSON.stringify(full),
+    JSON.stringify({ not: "a list" }),
+    "not JSON",
+  ]) {
+    const db = atStep(59, { rules: kept });
+    migrate(db, NOW, 60);
+    assert.equal(rulesOf(db), kept);
+    assert.deepEqual(rulesLogged(db), []);
+  }
+  const none = atStep(59);
+  migrate(none, NOW, 60);
+  assert.equal(version(none), 60);
+  assert.equal(rulesOf(none), undefined);
+  assert.deepEqual(rulesLogged(none), []);
 });

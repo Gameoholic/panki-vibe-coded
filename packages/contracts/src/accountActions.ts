@@ -9,8 +9,8 @@ import { z } from "zod";
  */
 
 /**
- * The places that have actions, whose prompt is the admin's (`ai.ts` → `ADMIN_PROMPT_PLACE_IDS` is this list): the word
- * and the card. The transcript's Proofread still runs templates.
+ * The places that have actions, whose prompt is the admin's (`ai.ts` → `ADMIN_PROMPT_PLACE_IDS` is this list and Video
+ * end's): the word and the card. The transcript's Proofread still runs templates.
  */
 export const ACTION_PLACE_IDS = ["word", "card"] as const;
 export const ActionPlaceId = z.enum(ACTION_PLACE_IDS);

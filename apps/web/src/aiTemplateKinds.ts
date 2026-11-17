@@ -37,7 +37,7 @@ import { estimateWords } from "./words";
  * Whether a place's runs take follow-ups, so its templates' editor shows the Follow-up prompt (Proofread's don't: a
  * run edits, asking further is running it again; AI step 6). A template keeps its `followUp` either way, unused there.
  */
-export const TAKES_FOLLOW_UPS: Record<AiPlaceId, boolean> = { word: true, card: true, transcript: false };
+export const TAKES_FOLLOW_UPS: Record<AiPlaceId, boolean> = { word: true, card: true, transcript: false, videoEnd: false };
 
 /**
  * The video a Proofread row's "Up to" is for, since a run's size is the video's: 15 minutes of Japanese, about 350
@@ -62,6 +62,8 @@ type RunSize = {
 const RUN_SIZES: Record<AiPlaceId, RunSize> = {
   word: { answerTokens: (s) => s.aiMaxAnswerTokens, sentWith: () => "", sample: null },
   card: { answerTokens: (s) => s.aiMaxTouchUpTokens, sentWith: () => "", sample: null },
+  // Takes no templates (its prompt is the admin's); here so every place has its size.
+  videoEnd: { answerTokens: (s) => s.aiMaxAnswerTokens, sentWith: () => "", sample: null },
   transcript: {
     answerTokens: (s) => proofreadTokens(SAMPLE_VIDEO.lines, s.aiMaxProofreadTokens),
     sentWith: sampleTranscript,

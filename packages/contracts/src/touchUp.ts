@@ -8,6 +8,7 @@ import { PIECE_NAMES } from "./pieces";
 import { Judgement, JUDGEMENTS } from "./judgement";
 import { AI_TEXT_MAX, ExplainShape, meaningsWhole } from "./prompt";
 import { ProofreadShape } from "./proofread";
+import { VideoEndShape } from "./videoEnd";
 import { VALUE_MAX } from "./type";
 import { KNOB_BREACHES, expectedGot, knobsBroken } from "./unread";
 
@@ -530,6 +531,7 @@ export type AnswerShape = { title: string | null; parts: AnswerPart[] };
  */
 export function answerShapesOf(place: AiPlaceId): AnswerShape[] {
   if (place === "transcript") return [{ title: null, parts: partsOf(ProofreadShape.shape) }];
+  if (place === "videoEnd") return [{ title: null, parts: partsOf(VideoEndShape.shape) }];
   if (place === "word") return [{ title: null, parts: partsOf(ExplainShape.shape) }];
   // The reply and Touch up's keys, then each shape a key can be asked in, once (both shapes of a field, not per field).
   return [

@@ -1,7 +1,7 @@
 /** @panki The strip's menu, everything about transcribing this video (`TranscribeMenu`, `statusWords`, `startWords`, `Seconds`). Never a second menu on the strip. */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AiSpark } from "@web/components/AiWaiting";
-import { ENGINES, RULE_ACTIONS, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, soundCostMicros, type WholeJob } from "@panki/contracts";
+import { ENGINES, FIND_VIDEO_END, RULE_ACTIONS, TRANSCRIBE_LANGUAGES, TRANSCRIBE_MODES, soundCostMicros, type WholeJob } from "@panki/contracts";
 import { Ask } from "@web/components/Ask";
 import { Button } from "@web/components/Button";
 import { Fold } from "@web/components/Fold";
@@ -42,6 +42,8 @@ export type AiPart = {
   /** The head is there (a run has been made): it is the part's heading, its name at the left, and the label gives way, so Panki AI isn't named twice. */
   headed: boolean;
   whole: ReactNode;
+  /** Find where the video ends (`FindEndItem`), after Proofread's two. */
+  end: ReactNode;
   part: { disabled: boolean; why: string | null; widen: (stretch: Seconds) => Seconds | null; costOf: (stretch: Seconds) => string | null; onRun: (stretch: Seconds) => void };
 };
 
@@ -118,12 +120,34 @@ export function startWords(status: TranscribeStatus): string {
   return status.kind === "blocked" || status.kind === "failed" ? "Try again" : TRANSCRIBE_MODES.live.name;
 }
 
-/** Why Transcribe the entire video can't be pressed, said beside it: on its way, under way, or done; null when it can. */
+/**
+ * Why a row of the menu is greyed, said at its right, every row's, the Panki AI part's too (`transcribe/proofreader.ts`
+ * reads them from here): one form, lower case but for a name (Panki, Panki AI, a provider), what's true now, and
+ * something under way "… is being …". One cause greying two rows reads the same on both.
+ */
+export const WHY = {
+  /** The entire video asked for, or being transcribed in the background: Transcribe the entire video in the background, Edit the transcript. */
+  wholeGoing: "the entire video is being transcribed in the background",
+  /** The player doesn't say how long the video is yet. */
+  noLength: "the video's length isn't known yet",
+  /** Panki AI's rows. */
+  signedOut: "not signed in to Panki",
+  aiUnread: "Panki AI's settings couldn't be read",
+  aiOff: "Panki AI is off",
+  noKey: (provider: string) => `no key for ${provider}`,
+  editingOff: "editing Panki subtitles is off",
+  nothingYet: "nothing is transcribed yet",
+  unfinished: "the transcript isn't finished yet",
+  proofreading: "the transcript is being proofread",
+  findingEnd: "the Video end is being found",
+} as const;
+
+/** Why Transcribe the entire video can't be pressed, said beside it: under way, or done; null when it can. */
 function orderWhy(state: TranscribeState, duration: number | null): string | null {
-  if (state.ordering || state.transcript?.job?.state === "running") return "under way";
+  if (state.ordering || state.transcript?.job?.state === "running") return WHY.wholeGoing;
   // Done: greyed with nothing beside it, the transcript itself says so.
   if (state.transcript?.job?.state === "done") return "";
-  if (duration === null) return "waiting for the video's length";
+  if (duration === null) return WHY.noLength;
   return null;
 }
 /** What the whole video costs at the engine's listed price (never measured), said beside Transcribe the entire video. */
@@ -509,6 +533,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onOrder, 
                   }}
                 />
               ) : null}
+              {ai.end}
             </div>
           ) : null}
           {transcribing || showStart || hasAny ? (
@@ -574,6 +599,20 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onOrder, 
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Find where the video ends as the menu lists it (`content/youtube.tsx` runs it): the spark, its name, and beside it
+ * where the Video end is, its cost, or why it can't go. The menu stays open as it runs: its call comes up in the head.
+ */
+export function FindEndItem({ disabled, why, onPress }: { disabled: boolean; why: string | null; onPress: () => void }) {
+  return (
+    <Button variant="item" disabled={disabled} onClick={onPress}>
+      <AiSpark />
+      {FIND_VIDEO_END}
+      {why ? <span className="strip-menu-why">{why}</span> : null}
+    </Button>
   );
 }
 

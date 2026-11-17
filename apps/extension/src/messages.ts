@@ -47,6 +47,9 @@ import {
   TranscriptLineMark,
   Transcription,
   VideoCard,
+  VideoEndAsk,
+  VideoEndFound,
+  VideoEndMove,
   VideoId,
   WHOLE_MAX_MS,
   WatchBatch,
@@ -300,6 +303,10 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("proofread"), ask: ProofreadAsk }),
   /** Panki AI's edits on a video's transcript taken back, a word's or a run's, one step each. */
   z.object({ kind: z.literal("undoFixes"), videoId: VideoId, undo: TranscriptUndo }),
+  /** Where a video's own content ends found by Panki AI from its finished transcript: the video, its length and the pieces only the page has. */
+  z.object({ kind: z.literal("findVideoEnd"), ask: VideoEndAsk }),
+  /** A video's Video end moved by hand, dragged on the seek bar. */
+  z.object({ kind: z.literal("moveVideoEnd"), videoId: VideoId, move: VideoEndMove }),
   /** A line of a video's transcript split or joined by hand at a word. */
   z.object({ kind: z.literal("lineMark"), videoId: VideoId, mark: TranscriptLineMark }),
   /** A video to download, as the page knows it (its name, channel, length and a still), kept in this browser at the quality set now. Needs no sign-in, and asks nothing of Panki. */
@@ -475,6 +482,10 @@ const ProofreadAnswered = z.union([z.object({ ok: z.literal(true), proofread: Pr
 export type ProofreadAnswered = z.input<typeof ProofreadAnswered>;
 /** Proofread as the strip reads it: the edits and the transcript after, or why there are none. */
 export type ProofreadResult = { ok: true; proofread: Proofread; transcript: Transcript } | AiFailed;
+/** Find where the video ends, answered as Proofread is: the Video end found and the transcript with it, or why not. */
+const VideoEndAnswered = z.union([z.object({ ok: z.literal(true), found: VideoEndFound, transcript: Transcript }), AiRefusal, Failed]);
+export type VideoEndAnswered = z.input<typeof VideoEndAnswered>;
+export type VideoEndResult = { ok: true; found: VideoEndFound; transcript: Transcript } | AiFailed;
 
 /** The background telling a page's script to capture what's there now (the menu, the toolbar button). */
 export const Trigger = z.object({ kind: z.literal("capture") });
@@ -765,6 +776,20 @@ export async function askProofread(proofread: ProofreadAsk): Promise<ProofreadRe
   if (got.ok) return got;
   if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
   return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** Find where the video ends, for everyone: the Video end found and the transcript after, or why not. */
+export async function askFindVideoEnd(find: VideoEndAsk): Promise<VideoEndResult> {
+  const answer = VideoEndAnswered.safeParse(await ask({ kind: "findVideoEnd", ask: find }));
+  if (!answer.success) return { ...failed(answer.error), problem: null, unread: null };
+  const got = answer.data;
+  if (got.ok) return got;
+  if ("problem" in got) return { ok: false, message: got.message, problem: got.problem, unread: got.unread };
+  return { ok: false, message: got.message, problem: got.signedOut ? "signedOut" : null, unread: null };
+}
+/** The Video end moved by hand, for everyone; the transcript as it stands then comes back. */
+export async function askMoveVideoEnd(videoId: string, move: VideoEndMove): Promise<Transcripted> {
+  const answer = Transcripted.safeParse(await ask({ kind: "moveVideoEnd", videoId, move }));
+  return answer.success ? answer.data : failed(answer.error);
 }
 /** Panki AI's edits taken back, a word's or a run's; the transcript as it stands then comes back. */
 export async function askUndoFixes(videoId: string, undo: TranscriptUndo): Promise<Transcripted> {

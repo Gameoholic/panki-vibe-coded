@@ -500,12 +500,9 @@ export const Settings = z.object({
    * (`apps/extension/src/watch/tracking.ts`). Never written again: `SettingsUpdate` leaves it out.
    */
   videoTracking: z.boolean(),
-  /**
-   * How close to its end, in seconds, a video played counts as finished (`watching.ts` → `inEndZone`): a flag kept on it
-   * until it's taken off by hand, so it leaves Continue watching and isn't offered to continue. Each account's own,
-   * set on the extension's Videos tab beside Video tracking. 20 to begin with.
-   */
-  finishedWithinSec: z.number().int().min(0).max(600),
+  // (`finishedWithinSec`, how close to its end a video counted as finished, is gone: a video is finished at its Video
+  // end or its real end, `watching.ts` → `finishesAt`. A value kept for it stays in the table, read by nothing, and a
+  // `PATCH` naming it is stripped.)
   /**
    * Above what a Panki AI run asks first, with its cost, in micro-dollars (AI step 5, Settings → Panki AI → Ask before a
    * run over; the choices are `aiTemplates.ts` → `ASK_OVER`): null never asks, 0 always does. $0.01 to begin with, so
@@ -600,7 +597,6 @@ export const DEFAULT_SETTINGS: Settings = {
   timeFormat: "h24",
   dateFormat: "dayMonth",
   videoTracking: false,
-  finishedWithinSec: 20,
   aiAskOverMicros: 10_000,
   aiShowCostOverMicros: 0,
   aiDefaults: {},

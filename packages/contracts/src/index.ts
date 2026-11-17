@@ -44,6 +44,7 @@ export * from "./transcription";
 export * from "./type";
 export * from "./unread";
 export * from "./usage";
+export * from "./videoEnd";
 export * from "./watching";
 export * from "./week";
 export * from "./wordAudio";

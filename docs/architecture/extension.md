@@ -93,7 +93,7 @@ The contracts' `roles.ts`: one registry of what can fill a field by itself (the 
 
 ## On the player's seek bar
 
-`ui/SeekMark.tsx`, a place of Panki's inside `.ytp-progress-bar` edge to edge: the clip with its two ends, how far the transcript reaches and what a run works on, the cards taken from this video (each with its words on a pin, laid in lanes so none covers another), the stop, and the marks of `dictionary.md` → "Words that are in your decks". How each looks is this browser's (`seekLook.ts`, CSS variables on `.seek`).
+`ui/SeekMark.tsx`, a place of Panki's inside `.ytp-progress-bar` edge to edge: the clip with its two ends, how far the transcript reaches and what a run works on, the cards taken from this video (each with its words on a pin, laid in lanes so none covers another), the stop, the Video end with its grip (`watching.md` → The Video end), and the marks of `dictionary.md` → "Words that are in your decks". How each looks is this browser's (`seekLook.ts`, CSS variables on `.seek`).
 
 - **The one spot Panki stands inside the player**: nothing of the player's is called or changed, an element is added to its bar. The place lets every press through (`pointer-events: none`) but those on the clip's two ends, stopped at the place so the bar under them doesn't seek.
 - **The reach is read from where the pointer is against where the bar is drawn** (a `pointermove` on the document, once a frame), not from the bar's own events, so nothing is laid over the picture and a click there still pauses. A bar the player has hidden (`ytp-autohide`) is never on, so no unseen pin can be pressed.

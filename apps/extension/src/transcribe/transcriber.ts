@@ -241,7 +241,9 @@ const sameTranscript = (a: Transcript | null, b: Transcript) =>
   a.covered.at(-1)?.endMs === b.covered.at(-1)?.endMs &&
   a.job?.id === b.job?.id &&
   a.job?.state === b.job?.state &&
-  (a.proofreading ?? false) === (b.proofreading ?? false);
+  (a.proofreading ?? false) === (b.proofreading ?? false) &&
+  a.videoEnd?.atMs === b.videoEnd?.atMs &&
+  (a.findingEnd ?? false) === (b.findingEnd ?? false);
 
 export type Transcriber = ReturnType<typeof createTranscriber>;
 
@@ -457,6 +459,9 @@ export function createTranscriber() {
     if (sameTranscript(transcript, next)) return;
     const ruling = next.proofreading === true;
     if (ruling !== (transcript?.proofreading === true)) note(ruling ? "Panki AI proofreading for an automation, on Panki" : "Panki AI's proofread for an automation done · its edits are in");
+    const finding = next.findingEnd === true;
+    if (finding !== (transcript?.findingEnd === true)) note(finding ? "Panki AI finding where the video ends for an automation, on Panki" : "Panki AI's search for where the video ends done for an automation");
+    if (next.videoEnd !== null && transcript?.videoEnd?.atMs !== next.videoEnd.atMs) note(`Video end at ${clock(next.videoEnd.atMs / 1000)}`);
     transcript = next;
     watchJob();
     tell();
@@ -574,9 +579,9 @@ export function createTranscriber() {
     accept(answer.transcript);
   }
 
-  /** The transcript read again while the download is under way, or a rule is proofreading it on Panki, every `FOLLOW.poll` seconds. */
+  /** The transcript read again while the download is under way, or a rule is proofreading it or finding where it ends on Panki, every `FOLLOW.poll` seconds. */
   function poll(id: string) {
-    if (!(downloading() || transcript?.proofreading === true) || performance.now() - lastPoll < FOLLOW.poll * 1000) return;
+    if (!(downloading() || transcript?.proofreading === true || transcript?.findingEnd === true) || performance.now() - lastPoll < FOLLOW.poll * 1000) return;
     lastPoll = performance.now();
     const mine = turn;
     void askPoll(id).then((answer) => {

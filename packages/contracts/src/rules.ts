@@ -1,6 +1,6 @@
 /** @panki Automations (rules in code): every automatic run, When a trigger → Do an action → At most a cap (`RULE_TRIGGERS`, `RULE_ACTIONS`, `Rule`, `ruleProblem`, `RuleStanding`). */
 import { z } from "zod";
-import { TRANSCRIBE_MODES } from "./transcription";
+import { FIND_VIDEO_END, TRANSCRIBE_MODES } from "./transcription";
 
 /**
  * An **automation** on screen is a rule in the code, the shapes and the tables (`Rule`, `Settings.rules`, `rule_runs`,
@@ -39,7 +39,7 @@ export type RuleKnob = "seconds" | "aiAction";
 export const RULE_SECONDS_MAX = 600;
 
 /** The actions, one registry: what a rule does. A new action is one entry here and its run where its triggers happen. */
-export const RULE_ACTION_IDS = ["proofread", "transcribe", "transcribeWhole", "download", "drawerAction", "popupAction"] as const;
+export const RULE_ACTION_IDS = ["proofread", "findVideoEnd", "transcribe", "transcribeWhole", "download", "drawerAction", "popupAction"] as const;
 /**
  * An action as kept: one of the registry's, one since renamed read as it is now ("touchUp" is the Card drawer's action,
  * "explain" the Word pop-up's), nothing rewritten.
@@ -65,6 +65,8 @@ export type RuleActionEntry = {
 const NONE = { maxMinutes: null, maxMb: null, watchedSeconds: null };
 export const RULE_ACTIONS: Record<RuleActionId, RuleActionEntry> = {
   proofread: { name: "Proofread", subject: "video", caps: [], knobs: [], paid: true, start: NONE },
+  // Where the video's own content ends, everyone's (`videoEnd.ts`): a video that has one already isn't run on; a press asks again.
+  findVideoEnd: { name: FIND_VIDEO_END, subject: "video", caps: [], knobs: [], paid: true, start: NONE },
   // Live, the chunks following the viewer, at once; 30 minutes was the admin's length limit to begin with.
   transcribe: { name: TRANSCRIBE_MODES.live.name, subject: "video", caps: ["minutes"], knobs: [], paid: true, start: { ...NONE, maxMinutes: 30 } },
   // Full, the whole video ordered in the background, once it's been watched 20 s: the same price a minute (the engine's
@@ -104,7 +106,13 @@ export type RuleTriggerEntry = {
 };
 export const RULE_TRIGGERS: Record<RuleTriggerId, RuleTriggerEntry> = {
   // Finished: transcribed whole in the background (Full), or every moment of it covered by chunks, as far as the account's watching knows its length.
-  transcriptWhole: { name: "a transcript is finished", about: "a transcript", heard: "server", does: { proofread: "proofread the entire video" }, knobs: [] },
+  transcriptWhole: {
+    name: "a transcript is finished",
+    about: "a transcript",
+    heard: "server",
+    does: { proofread: "proofread the entire video", findVideoEnd: "find where the video ends" },
+    knobs: [],
+  },
   // Heard by the server as the chunk's words stand: its lines, a line running on into the next chunk proofread again with it.
   chunkIn: { name: "a chunk is transcribed", about: "a chunk", heard: "server", does: { proofread: "proofread its lines" }, knobs: [] },
   // A part transcribed again (Re-transcribe a part), once its words stand in place of what was there.
@@ -247,15 +255,17 @@ const startingRule = (id: string, when: RuleTriggerId, does: RuleActionId, limit
   ...limits,
 });
 /**
- * What every account starts with, all On (the owner's own set, 2026-11-16): When a video plays, start transcribing; When
- * a video (up to 90 min) plays, only after 5 s watched, transcribe the entire video in the background; When a video (up
- * to 60 min, 1,000 MB) is saved for later, download it. None on the Card drawer or the Word pop-up. An account that
- * kept its own is never changed.
+ * What every account starts with, all On: When a video plays, start transcribing; When a video (up to 90 min) plays,
+ * only after 5 s watched, transcribe the entire video in the background; When a video (up to 60 min, 1,000 MB) is saved
+ * for later, download it; When a transcript is finished, find where the video ends. None on the Card drawer or the Word
+ * pop-up. An account that kept its own is never changed by these; one that kept them before Find where the video ends
+ * existed had it added once (account migration 60).
  */
 export const DEFAULT_RULES: Rule[] = [
   startingRule("transcribe", "videoPlays", "transcribe"),
   startingRule("transcribeWhole", "videoPlays", "transcribeWhole", { maxMinutes: 90, watchedSeconds: 5 }),
   startingRule("download", "videoSaved", "download", { maxMinutes: 60, maxMb: 1_000 }),
+  startingRule("findVideoEnd", "transcriptWhole", "findVideoEnd"),
 ];
 /** The account's one daily cap over every rule (`Settings.rulesDayMicros`) to begin with: $5.00. */
 export const DEFAULT_RULES_DAY_MICROS = 5_000_000;

@@ -14,15 +14,27 @@ import { VideoId } from "./transcription";
 
 // An account's watching is its own alone: nothing of it is shown to other accounts.
 
-// How close to its end a video counts as finished is each account's own, `Settings.finishedWithinSec`; a value an admin
-// kept as `WatchingSettings`, when it was everyone's, is read by nothing.
-/** Whether a moment of a video, in ms, is in its last `finishedWithinMs`: played into there, the video is finished. */
-export const inEndZone = (atMs: number, lengthMs: number, finishedWithinMs: number) => atMs >= lengthMs - finishedWithinMs;
+// Where a video counts as finished was once a window before its end, everyone's (`WatchingSettings`) and then each
+// account's (`Settings.finishedWithinSec`); a value kept for either is read by nothing.
+/**
+ * Where a video counts as finished, in ms of it: its Video end, where its own content ends (`VideoEnd`, found by Panki
+ * AI from the transcript or moved by hand), else its real end, less `WATCH.endSlackMs` for the player's rounding. Never
+ * past the real end.
+ */
+export const finishesAt = (lengthMs: number, videoEndMs: number | null = null): number => {
+  const real = Math.max(0, lengthMs - WATCH.endSlackMs);
+  return videoEndMs === null ? real : Math.min(real, videoEndMs);
+};
+/** Whether a moment of a video, in ms, is at or past where it counts as finished (`finishesAt`): played into there, it's finished. */
+export const inEnd = (atMs: number, lengthMs: number, videoEndMs: number | null = null): boolean => atMs >= finishesAt(lengthMs, videoEndMs);
 
 /** The magnitudes of watching, one home. */
 export const WATCH = {
-  // How near its end a video is finished is `Settings.finishedWithinSec`, not a magnitude here. A video counts the
-  // moment it plays, with no shortest stop.
+  /**
+   * How close to its real end a video with no Video end counts as finished, in ms: the player's own rounding, since
+   * its time can stop a little short of its length as it ends. A video counts the moment it plays, with no shortest stop.
+   */
+  endSlackMs: 1_000,
   /** How soon after a video starts playing its first stretch is sent, so it's in Continue watching and on its thumbnail at once. */
   firstMs: 2_000,
   /** How often the extension closes the stretch being watched and sends what it has while the video plays on (a pause, a jump, leaving or hiding the page send at once), so only a crash loses anything, and that much at most. Thirty seconds: a row a second would weigh on the stats for nothing. */
@@ -88,10 +100,8 @@ export const WatchedVideo = z.object({
   /** Where it was last stopped, in ms of the video; null when never, when forgotten, or when it's finished. */
   stoppedAtMs: z.number().int().nonnegative().nullable(),
   counted: z.boolean(),
-  /** Finished: its latest finish or unfinish mark is a finish. False from an older server. */
+  /** Finished: its latest finish or unfinish mark is a finish. False from an older server. Where it's finished is `finishesAt`'s. */
   finished: z.boolean().default(false),
-  /** How close to its end a video played counts as finished, the account's own (`Settings.finishedWithinSec`), in ms; 20 s from an older server. */
-  finishedWithinMs: z.number().int().nonnegative().default(20_000),
 });
 export type WatchedVideo = z.infer<typeof WatchedVideo>;
 export const WatchedVideoResponse = z.object({ video: WatchedVideo });

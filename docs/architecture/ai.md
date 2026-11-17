@@ -6,7 +6,7 @@
 
 The code and the screens use these, and nothing else:
 
-- A **place** is where a conversation lives (`AI_PLACES`: `word`, the Word pop-up; `card`, the capture drawer and a card opened in a deck; `transcript`, the Panki panel's Proofread).
+- A **place** is where a conversation lives (`AI_PLACES`: `word`, the Word pop-up; `card`, the capture drawer and a card opened in a deck; `transcript`, the Panki panel's Proofread), or a run with no conversation (`videoEnd`, Find where the video ends). The places an account steers in Settings → Panki AI, by its actions or its templates, are `STEERED_PLACE_IDS`; Video end's prompt is the admin's alone.
 - A place's **prompt** is the admin's, one per place (the transcript's is a template, below).
 - A **message** is anything sent: typed words, ticked actions, or both; one message, one call.
 - An **action** is a saved message with knobs, Panki's own or the account's.
@@ -95,6 +95,15 @@ A run, not a conversation: Proofread's edits are the transcript's, with Undo. It
 - **The server** (`POST /api/ai/transcript`, held to Editing Panki subtitles): reads the lines as they stand now (`409` when a word isn't living any more), fills `{Transcript}`, `{Edited by hand}`, `{Unsure words}` and a row's surrounding lines from the store (`proofreadPieces`, overriding anything the page sent under those names), holds the answer to `proofreadProblem` (a line not sent or named twice, empty, without a reason, or rewritten past a correction's length), passes over a line given back as it reads, and lays every other onto its words with `realignLine`: every word whose text changed is an AI fix with the run, model, template and reason.
 - **Whichever came later wins**: a word a person edited is changed like any other (the prompt asks for it only when sure), and a person's edit after is the latest. Undone, a fix stands aside (`undone_at`), one step back, by word or by run. The engine's confidence per word is kept (`logprob`), `unsure` under `UNSURE_BELOW`.
 - On the rows a word Panki AI edited is lit with a spark (`editedAt`); the editors show what was heard and why, with Undo (`transcribing.md` → "Editing by hand").
+
+## Video end's place: Find where the video ends
+
+A run, as Proofread's is, over the admin's prompt (`ADMIN_PROMPT_PLACE_IDS`, `DEFAULT_VIDEO_END_PROMPT`, edited in Admin → Panki AI with no message part and no User instructions): where a video's own content ends, kept as its Video end (`watching.md` → The Video end). `packages/contracts/src/videoEnd.ts` is its one home.
+
+- **What it's sent** (`videoEndLines`, `videoEndPieces`): the lines a person sees (`endLinesOf`, `cutLines`) reaching into the video's last `VIDEO_END_TAIL_MS` (15 minutes), never fewer than the last `VIDEO_END_LINES_LEAST`, each in `{Transcript}` as its number, when it starts and its text; `{Video length}`; the video's link and description, the page's. The lines are the server's, from the store; the page builds the same for Details.
+- **What it answers** (`VideoEndShape`, held to `videoEndProblem`): the last line of the content, by number, and why. The prompt asks for the end of the content, never the first goodbye, and the later line when unsure. Panki puts the Video end where that line's words end, so no time the model writes is used.
+- **For everyone** (`AiCalls.findVideoEnd`, `POST /api/ai/video-end`): only once the transcript is finished (`transcriptFinished`, for the length the page or the rule gives); a video that has its Video end already is asked again, the new answer the latest placing; refused (`409`) while one is being found this moment (`shared.findingEnd`). An automation passes over a video that has one. Held to Max answer length; one usage row a run, its `what` `videoEnd`.
+- **On the page** (`transcribe/proofreader.ts` → `findEnd`, `endWhy`, `endCeiling`; `ui/TranscribeMenu.tsx` → `FindEndItem`): an item after Proofread's in the menu's Panki AI part, beside it why not, greyed ("the transcript isn't finished yet", "the Video end is being found": the menu's `WHY`, one words object for every row's reason), else the Video end's time once there is one, else its cost; no line under it and no hover. Asked first over the account's threshold, its call in the head with Proofread's, the Log saying what it found.
 
 ## The extension's side
 

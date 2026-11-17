@@ -302,9 +302,38 @@ export const WholeJob = z.object({
   message: z.string().nullable(),
 });
 export type WholeJob = z.infer<typeof WholeJob>;
+/** How close to a video's ends what's transcribed must reach for its transcript to count as finished, in ms: a chunk run starts and stops a moment either side. */
+export const FINISHED_SLACK_MS = { start: 1_000, end: 2_000 } as const;
+/** Whether a transcript is finished: what's transcribed covers a video of this length from its start to its end, in one stretch. */
+export const transcriptFinished = (covered: readonly Stretch[], lengthMs: number): boolean =>
+  covered.some((stretch) => stretch.startMs <= FINISHED_SLACK_MS.start && stretch.endMs >= lengthMs - FINISHED_SLACK_MS.end);
+
 /** A whole-video download asked for: the video's length, as the player says it. */
 export const WholeAsk = z.object({ lengthMs: z.number().int().positive().max(WHOLE_MAX_MS) });
 export type WholeAsk = z.infer<typeof WholeAsk>;
+
+/**
+ * A video's Video end: where its own content ends, in ms of the video (the closing words, the talking stopping before
+ * the credits), so it counts as finished once it plays past there (`watching.ts` → `finishesAt`). One per video,
+ * everyone's, as its transcript is: found by Panki AI from the finished transcript (`videoEnd.ts`), again at a press, and moved by
+ * hand to fix it, the latest standing. A video with no transcript has none. Which of them put it there is kept on its
+ * row and never told: a Video end isn't marked as Panki AI's.
+ */
+export const VideoEnd = z.object({ atMs: z.number().int().nonnegative().max(WHOLE_MAX_MS) });
+export type VideoEnd = z.infer<typeof VideoEnd>;
+/** Panki AI's action that finds a video's Video end, by its one name: the Transcription menu's, an automation's Do, the Log's. */
+export const FIND_VIDEO_END = "Find where the video ends";
+/**
+ * How much of a video's end Find where the video ends reads, in ms: its last 15 minutes, or all of it when it's shorter.
+ * Where the content ends is near the end, so the rest would cost and say nothing, and a long video would pass Max
+ * request length.
+ */
+export const VIDEO_END_TAIL_MS = 15 * 60_000;
+/** The fewest lines it reads, however long ago they were said: a video whose end is long without words still has its last lines read. */
+export const VIDEO_END_LINES_LEAST = 30;
+/** A Video end moved by hand: where to, in ms of the video. */
+export const VideoEndMove = z.object({ atMs: z.number().int().nonnegative().max(WHOLE_MAX_MS) });
+export type VideoEndMove = z.infer<typeof VideoEndMove>;
 
 /**
  * A video's transcript as Panki keeps it: every word still standing, in the video's order, and the stretches of the
@@ -322,6 +351,10 @@ export const Transcript = z.object({
   job: WholeJob.nullable(),
   /** Panki AI is proofreading it for a rule, on the server: a page reads it again until it's done, so the edits show. Left out when not. */
   proofreading: z.boolean().optional(),
+  /** Where the video's own content ends (`VideoEnd`); null while none has been found, and from an older server. */
+  videoEnd: VideoEnd.nullable().default(null),
+  /** Panki AI is finding the Video end for a rule, on the server: a page reads it again until it's done. Left out when not. */
+  findingEnd: z.boolean().optional(),
 });
 export type Transcript = z.infer<typeof Transcript>;
 export const TranscriptResponse = z.object({ transcript: Transcript });

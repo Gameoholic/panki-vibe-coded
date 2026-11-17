@@ -7,7 +7,7 @@ import { listDictionaries } from "./dictionary/store";
 import { lookAllowed, patternsOf, permissionsFor } from "./lookSettings";
 import { popupLayoutOf, withMeanings } from "./popupLayout";
 import { aiShownOf, forgetSignedIn, putKept, readKept } from "./kept";
-import { Ask, type AiState, type RuleRan, type RulesState,type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type Called, type Carded, type Bytes, type Claimed, type Done, type DownloadsChanged, type Facts, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
+import { Ask, type AiState, type RuleRan, type RulesState,type ExplainAnswer, type TouchUpAnswered, type ProofreadAnswered, type VideoEndAnswered, type Called, type Carded, type Bytes, type Claimed, type Done, type DownloadsChanged, type Facts, type Going, type Heard, type Latticed, type Glanced, type Homed, type Known, type Listed, type LocalChanged, type Localled, type LookState, type Looked, type Pictured, type Pieced, type Recapped, type Redone, type Saved, type State, type Stretched, type Transcripted, type Trigger, type Updated, type Voiced, type Watched } from "./messages";
 import { base64Of as textOfBytes, bytesOf } from "./download/bytes";
 import { claimDownload, downloadRoom, holdDownload, keepPiece, listDownloads, pieceBytes, pieceFacts, releaseDownload, removeDownload, startDownload } from "./download/store";
 import { CLIENT } from "./client";
@@ -467,7 +467,7 @@ async function whileStoppable<T>(sender: chrome.runtime.MessageSender, stop: str
 async function answer(
   ask: Ask,
   sender: chrome.runtime.MessageSender,
-): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | RulesState | RuleRan | ExplainAnswer | TouchUpAnswered | ProofreadAnswered | Claimed | Going | Listed> {
+): Promise<State | Done | LookState | Looked | Latticed | Voiced | Heard | Pictured | Carded | Called | Transcripted | Pieced | Redone | Stretched | Localled | Watched | Recapped | Homed | Glanced | Saved | Updated | AiState | RulesState | RuleRan | ExplainAnswer | TouchUpAnswered | ProofreadAnswered | VideoEndAnswered | Claimed | Going | Listed> {
   // Keeping the extension up to date needs no sign-in: Panki's build is anyone's to ask about and download.
   if (ask.kind === "update") return { ok: true, update: await readUpdate() };
   if (ask.kind === "checkUpdate") return { ok: true, update: await checkForUpdate() };
@@ -661,6 +661,22 @@ async function answer(
     }
     if (ask.kind === "undoFixes") {
       await panki.undoFixes(door, ask.videoId, ask.undo);
+      return transcripted(door, ask.videoId);
+    }
+    // Find where the video ends, as Proofread is: its answer carries the transcript with the Video end in it.
+    if (ask.kind === "findVideoEnd") {
+      try {
+        const answered = await panki.findVideoEnd(door, ask.ask);
+        await putKept("ai", store, aiShownOf(answered.ai));
+        return { ok: true, found: answered.found, transcript: answered.transcript };
+      } catch (e) {
+        if (!(e instanceof ExplainRefused)) throw e;
+        await putKept("ai", store, aiShownOf(e.ai));
+        return { ok: false, message: e.message, problem: e.problem, unread: e.unread };
+      }
+    }
+    if (ask.kind === "moveVideoEnd") {
+      await panki.moveVideoEnd(door, ask.videoId, ask.move);
       return transcripted(door, ask.videoId);
     }
     if (ask.kind === "lineMark") {

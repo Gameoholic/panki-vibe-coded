@@ -15,6 +15,7 @@ import {
   cutLines,
   defaultIdsOf,
   lineTextOf,
+  transcriptFinished,
   youtubeUrl,
   type Rule,
   type RuleOutcome,
@@ -32,9 +33,6 @@ import type { Shared } from "./shared";
  * (`AiCalls`), its usage row the same; what differs is the caps, asked with each call's most before it's sent, and the
  * row it leaves.
  */
-
-/** How close to a video's ends the chunks' stretches must reach for its transcript to count as whole, in ms: a chunk run starts and stops a moment either side. */
-const WHOLE_SLACK_MS = { start: 1_000, end: 2_000 };
 
 export function createRules(dbFor: (userId: string) => Db, shared: Shared, calls: AiCalls, now: () => number) {
   /** Each rule's runs on a video, one after another: the last in line, by rule and video. A state of this process, as the whole-video downloads' line is. */
@@ -136,14 +134,38 @@ export function createRules(dbFor: (userId: string) => Db, shared: Shared, calls
     }
   }
 
+  /**
+   * The rules on that find where a video ends once its transcript is finished: once a video for each, and never on a
+   * video that has its Video end already, found by anyone, nor one being found this moment (a press, or another rule):
+   * it's everyone's, so an automation pays for it once (a press may ask again), and nothing runs and nothing is kept. Run as the call a press makes, held to
+   * the caps before it's sent, kept as the run's row; the transcript says it's being found meanwhile. The video's length
+   * is its whole-video download's, else as the account's watching last read it.
+   */
+  function findEndHeard(userId: string, videoId: string) {
+    const db = dbFor(userId);
+    for (const rule of heardBy(db, "transcriptWhole")) {
+      if (rule.do !== "findVideoEnd" || db.ruleRanOn(rule.id, videoId)) continue;
+      if (shared.videoEnd(videoId) !== null || shared.findingEnd.has(videoId)) return;
+      const transcript = shared.transcript(videoId);
+      const lengthMs = (transcript.job?.state === "done" ? transcript.job.lengthMs : null) ?? db.watchedLength(videoId);
+      if (lengthMs === null) continue;
+      void calls
+        .findVideoEnd(db, userId, { videoId, lengthMs, pieces: { source: youtubeUrl({ videoId, seconds: null }) }, before: capsOf(db, rule) })
+        .then((done) => {
+          if (done.ok) keep(db, rule, videoId, "ran", done.done.ran.costMicros, `Video end at line ${done.done.line}: ${done.done.reason}`);
+          else keep(db, rule, videoId, done.refused.problem === "capped" ? "capped" : "failed", done.costMicros, done.refused.message);
+        })
+        .catch((e: unknown) => console.error(`Rule ${rule.id} on ${videoId} went wrong.`, e));
+      // One rule's run finds it for every other: the rest are passed over.
+      return;
+    }
+  }
+
   /** A video's transcript became whole, for an account: each rule on that it triggers runs, once a video. */
   function heardWhole(userId: string, videoId: string) {
     proofreadHeard(userId, videoId, "transcriptWhole", () => linesOf(videoId), true);
+    findEndHeard(userId, videoId);
   }
-
-  /** Whether the chunks' stretches cover a video of this length from its start to its end. */
-  const wholeIn = (covered: readonly Stretch[], lengthMs: number) =>
-    covered.some((stretch) => stretch.startMs <= WHOLE_SLACK_MS.start && stretch.endMs >= lengthMs - WHOLE_SLACK_MS.end);
 
   /** What a video's transcript costs at the engine's listed price, in micro-dollars: the most a Transcribe run can spend on it. */
   function transcribeMicros(lengthMs: number): number {
@@ -228,14 +250,14 @@ export function createRules(dbFor: (userId: string) => Db, shared: Shared, calls
     pieceIn(userId: string, videoId: string, heard: Stretch | null) {
       if (heard !== null) proofreadHeard(userId, videoId, "chunkIn", () => linesOf(videoId, heard), false);
       const lengthMs = dbFor(userId).watchedLength(videoId);
-      if (lengthMs === null || !wholeIn(shared.transcript(videoId).covered, lengthMs)) return;
+      if (lengthMs === null || !transcriptFinished(shared.transcript(videoId).covered, lengthMs)) return;
       heardWhole(userId, videoId);
     },
     /** A part transcribed again, its words standing: its lines (`partIn`), and the transcript may be whole now. */
     partIn(userId: string, videoId: string, part: Stretch) {
       proofreadHeard(userId, videoId, "partIn", () => linesOf(videoId, part), false);
       const lengthMs = dbFor(userId).watchedLength(videoId);
-      if (lengthMs !== null && wholeIn(shared.transcript(videoId).covered, lengthMs)) heardWhole(userId, videoId);
+      if (lengthMs !== null && transcriptFinished(shared.transcript(videoId).covered, lengthMs)) heardWhole(userId, videoId);
     },
   };
 }

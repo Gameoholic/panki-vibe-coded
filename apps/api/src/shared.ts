@@ -48,6 +48,7 @@ import {
   type TranscriptWord,
   type TranscriptionUpdate,
   type User,
+  type VideoEnd,
   type VideoPicture,
   type WordAudioSourceId,
   type WordAudioUpdate,
@@ -565,6 +566,25 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync) => void> = [
       SELECT 'aiPrompts', json_object('touchUp', json(value)) FROM settings WHERE key = 'aiTouchUpFrame'
     `);
   },
+  (db) => {
+    // Video end: where a video's own content ends, everyone's, beside its transcript. Every placing is a row of its own,
+    // the latest standing, never changed or deleted: Panki AI's (`source` 'ai', with the line it named in the lines it
+    // was sent, why, and the model) or a person's moving it by hand ('hand'); who asked or moved it, and when.
+    db.exec(`
+      CREATE TABLE video_ends (
+        id INTEGER PRIMARY KEY,
+        video_id TEXT NOT NULL,
+        at_ms INTEGER NOT NULL,
+        source TEXT NOT NULL CHECK (source IN ('ai', 'hand')),
+        line INTEGER,
+        reason TEXT,
+        model TEXT,
+        user_id TEXT NOT NULL,
+        at INTEGER NOT NULL
+      )
+    `);
+    db.exec("CREATE INDEX video_ends_video_id ON video_ends (video_id, id)");
+  },
 ];
 
 function migrate(db: DatabaseSync) {
@@ -712,6 +732,11 @@ export function openShared(dataDir: string) {
   /** The videos a rule is proofreading on the server this moment, each with how many runs: a state of this process, as the whole-video downloads' line is. */
   const proofreadingRuns = new Map<string, number>();
   const proofreadingNow = { has: (videoId: string) => (proofreadingRuns.get(videoId) ?? 0) > 0 };
+  /** The videos whose Video end Panki AI is finding this moment, by a press or a rule: never two at once for a video, so one find isn't paid twice. */
+  const findingEnds = new Set<string>();
+  // Whose placing it was (`source`) is kept on each row and read by nothing: a Video end isn't marked as Panki AI's.
+  const selectVideoEnd = db.prepare("SELECT at_ms AS atMs FROM video_ends WHERE video_id = ? ORDER BY id DESC LIMIT 1");
+  const insertVideoEnd = db.prepare("INSERT INTO video_ends (video_id, at_ms, source, line, reason, model, user_id, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
   const insertTranscript = db.prepare("INSERT OR IGNORE INTO transcripts (video_id, language, language_probability, created_at, updated_at) VALUES (?, NULL, NULL, ?, ?)");
   // Told a language and hearing words in it, the video is in that language by the teller's word, unless it's that already.
   const tellTranscriptLanguage = db.prepare("UPDATE transcripts SET language = ?, language_probability = NULL, updated_at = ? WHERE video_id = ? AND language IS NOT ?");
@@ -897,6 +922,12 @@ export function openShared(dataDir: string) {
   const selectKeysSet = db.prepare("SELECT service, set_at AS setAt FROM service_keys ORDER BY service");
   const keptHash = whileUnchanged(db, () => hashOf((selectSettings.all() as SettingRow[]).sort((a, b) => a.key.localeCompare(b.key)), selectKeysSet.all()));
 
+  /** A video's Video end as it stands: its latest placing, Panki AI's or a person's alike; null for none. */
+  function videoEndOf(videoId: string): VideoEnd | null {
+    const row = selectVideoEnd.get(videoId) as { atMs: number } | undefined;
+    return row ? { atMs: row.atMs } : null;
+  }
+
   return {
     /**
      * The `shared` kind of the state header (`kept.ts`): every shared setting (Panki AI, transcription, word audio) and
@@ -1026,8 +1057,8 @@ export function openShared(dataDir: string) {
     updateWordAudio(patch: WordAudioUpdate, now: number, userId: string): WordAudio {
       return updateGroup(WORD_AUDIO, patch, now, userId);
     },
-    // When a video counts as finished is each account's own (`Settings.finishedWithinSec`); a `WatchingSettings` row an
-    // admin kept here stays, unread.
+    // Where a video counts as finished is its Video end, else its real end (`finishesAt`); a `WatchingSettings` row an
+    // admin kept here, from when it was a window before the end, stays unread.
     /** Panki AI, for everyone: whether it's on, the provider and its model (`PankiAi`). */
     getAi(): PankiAi {
       return groupFrom(PANKI_AI, selectSettings.all() as SettingRow[]);
@@ -1046,7 +1077,7 @@ export function openShared(dataDir: string) {
         const parsed = raw === undefined ? null : z.string().safeParse(JSON.parse(raw));
         return parsed?.success ? parsed.data : null;
       };
-      return { word: read("aiExplainPrompt"), card: read("aiTouchUpPrompt"), transcript: null };
+      return { word: read("aiExplainPrompt"), card: read("aiTouchUpPrompt"), transcript: null, videoEnd: null };
     },
     /** When those prompts were carried into the admins' templates (`carryPrompts`); null until they have been. */
     promptsCarriedAt(): number | null {
@@ -1092,7 +1123,35 @@ export function openShared(dataDir: string) {
         covered: mergeStretches(selectKeptStretches.all(videoId, videoId) as StretchRow[]),
         job: job ? wholeJobOf(job) : null,
         ...(proofreadingNow.has(videoId) ? { proofreading: true } : {}),
+        videoEnd: videoEndOf(videoId),
+        ...(findingEnds.has(videoId) ? { findingEnd: true } : {}),
       });
+    },
+    /** A video's Video end as it stands, the latest placing; null when none was ever found. */
+    videoEnd: videoEndOf,
+    /**
+     * Panki AI is finding a video's Video end, by a press or a rule, or has done: while it is, its transcript says so and
+     * a page reads it again until it's done; `false` from `start` is one already under way, so a second isn't paid for.
+     * Only this process's: one cut short by a restart is simply not under way.
+     */
+    findingEnd: {
+      has: (videoId: string): boolean => findingEnds.has(videoId),
+      start(videoId: string): boolean {
+        if (findingEnds.has(videoId)) return false;
+        findingEnds.add(videoId);
+        return true;
+      },
+      end(videoId: string): void {
+        findingEnds.delete(videoId);
+      },
+    },
+    /** A Video end found by Panki AI: where, the line it named in the lines it was sent, why, the model, and who asked. */
+    keepFoundEnd(videoId: string, found: { atMs: number; line: number; reason: string; model: string }, userId: string, now: number): void {
+      insertVideoEnd.run(videoId, found.atMs, "ai", found.line, found.reason, found.model, userId, now);
+    },
+    /** A Video end moved by hand, by whom; the one before stays as it was, a row of its own. */
+    moveVideoEnd(videoId: string, atMs: number, userId: string, now: number): void {
+      insertVideoEnd.run(videoId, atMs, "hand", null, null, null, userId, now);
     },
     /**
      * A rule's Proofread on the server under way on a video, or ended: while it is, the transcript says so, and a page
@@ -1543,7 +1602,7 @@ export function gatherShared(shared: Shared, dataDir: string, auth: AuthDb, dbFo
 }
 
 /** Each place's prompt as it was named while it was one setting of everyone's, what a carried copy is named after. */
-const CARRIED_NAMES: Record<AiPlaceId, string> = { word: "Explain", card: "Touch up", transcript: "Proofread" };
+const CARRIED_NAMES: Record<AiPlaceId, string> = { word: "Explain", card: "Touch up", transcript: "Proofread", videoEnd: "Find where the video ends" };
 
 /** Panki's own text of each place's prompt, as Admin's default had it before templates and as its starter has it now: a kept prompt that's one of these was never edited. */
 const PANKI_PROMPTS: Record<AiPlaceId, readonly string[]> = {
@@ -1551,6 +1610,8 @@ const PANKI_PROMPTS: Record<AiPlaceId, readonly string[]> = {
   card: [TOUCH_UP_PROMPT_BEFORE_TEMPLATES, TOUCH_UP_STARTER_PROMPT],
   // Never a setting of everyone's: it came with the templates (AI step 6).
   transcript: [DEFAULT_PROOFREAD_PROMPT],
+  // Never a setting kept before templates: it came as the admin's.
+  videoEnd: [],
 };
 
 /**

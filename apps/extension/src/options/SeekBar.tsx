@@ -26,7 +26,7 @@ import {
 } from "../seekLook";
 import type { KnownMoment } from "../capture/known";
 import { writeStore, type Stored } from "../storage";
-import { SeekMark, type ClipMark } from "../ui/SeekMark";
+import { SeekMark, type ClipMark, type VideoEndMark } from "../ui/SeekMark";
 import { ColourByStage } from "./ColourByStage";
 import { SceneTitle } from "./explainerScenes";
 
@@ -41,7 +41,7 @@ const WORDS_OPTIONS = [
   { id: "off", label: "Hidden" },
 ] as const satisfies readonly { id: CardWords; label: string }[];
 
-/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, then where the words that are in the decks are said. */
+/** Each mark under its own heading, in the bar's order of what it says: what's transcribed, the cards, the suspended ones, the flagged ones, the clip, where the words that are in the decks are said, then where the video's own content ends. */
 const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "transcript", name: "Transcript" },
   // Where each card of the video's was added from, its clip; the subtitles' word there has a colour of its own (Videos → Panki panel).
@@ -50,6 +50,7 @@ const MARKS: readonly { id: SeekMarkId; name: string }[] = [
   { id: "flagged", name: "Flagged cards" },
   { id: "clip", name: "Clip" },
   { id: "known", name: "Words that are in your decks" },
+  { id: "videoEnd", name: "Video end" },
 ];
 /** Where the made-up video says words that are in the decks, for the preview: a few ticks across what's transcribed, each with its word. */
 const PREVIEW_IN_DECKS: readonly KnownMoment[] = (
@@ -86,6 +87,8 @@ const PREVIEW_CARDS: readonly VideoCard[] = [
 const PREVIEW_PLAYED = 150;
 /** Where the made-up video was stopped the time before, for the Where you stopped preview. */
 const PREVIEW_STOP = 440;
+/** Where the made-up video's own content ends: its Video end, dragged here as on a video. */
+const PREVIEW_VIDEO_END = 566;
 /** How long the preview's offer stays gone before it comes back, so the little scene plays again. */
 const PREVIEW_AGAIN_MS = 1800;
 
@@ -111,6 +114,9 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
     onMove: (which, to) => setClip((was) => (which === "start" ? { ...was, start: Math.min(to, was.end - 1) } : { ...was, end: Math.max(to, was.start + 1) })),
     onSettle: () => undefined,
   };
+  // The made-up video's Video end, dragged as on a video.
+  const [videoEnd, setVideoEnd] = useState(PREVIEW_VIDEO_END);
+  const endMark: VideoEndMark = { at: videoEnd, movable: true, onMove: setVideoEnd, onSettle: () => undefined };
   // The way picked changes: the video opens afresh, where that way puts it, and the offer comes back.
   useEffect(() => {
     setAt(jump ? landing : PREVIEW_PLAYED);
@@ -151,8 +157,8 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
       <div
         className="seek-preview-bar"
         onPointerDown={(e) => {
-          // A pin, the clip's ends and the stop's tag do their own thing.
-          if (e.target instanceof Element && e.target.closest(".seek-pin, .seek-end, .seek-stop")) return;
+          // A pin, the clip's ends, the Video end and the stop's tag do their own thing.
+          if (e.target instanceof Element && e.target.closest(".seek-pin, .seek-end, .seek-video-end, .seek-stop")) return;
           const box = e.currentTarget.getBoundingClientRect();
           if (box.width > 0) setAt(Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * PREVIEW_LENGTH);
         }}
@@ -169,6 +175,7 @@ function SeekPreview({ look, how, back, marked }: { look: SeekLook; how: ResumeH
           hover={hover}
           stop={marked ? PREVIEW_STOP : null}
           onStop={() => setAt(landing)}
+          videoEnd={endMark}
           // The made-up cards have no transcript to find their words in: a press goes to the sentence, as it does on a video without one.
           onGo={(pinned) => setAt((pinned.of !== "known" ? pinned.card.startMs : look.known.click === "word" ? pinned.said.startMs : pinned.said.lineMs) / 1000)}
         />

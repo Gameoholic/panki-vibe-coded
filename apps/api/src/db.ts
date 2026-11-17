@@ -1233,6 +1233,28 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     // hand in the card type editor; a type's save logs it with the rest of it.
     db.exec("ALTER TABLE card_fields ADD COLUMN fills TEXT");
   },
+  (db, now) => {
+    // 60. When a transcript is finished, find where the video ends: a new rule, On for every account. An account that
+    // never kept its rules reads it among the defaults; one that kept them gets it added once, here, at the end of its
+    // list, with its change row, unless it already has a rule doing it, or its list is already the 30 an account can
+    // keep (then it's left as it is: one more wouldn't read). Nothing else in the list is touched. A list that doesn't
+    // read as JSON is left as it is.
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'rules'").get() as { value: string } | undefined;
+    if (!row) return;
+    let kept: unknown;
+    try {
+      kept = JSON.parse(row.value);
+    } catch {
+      return;
+    }
+    if (!Array.isArray(kept) || kept.length >= 30) return;
+    const has = kept.some((rule: unknown) => typeof rule === "object" && rule !== null && ((rule as Record<string, unknown>).do === "findVideoEnd" || (rule as Record<string, unknown>).id === "findVideoEnd"));
+    if (has) return;
+    const find = { id: "findVideoEnd", on: true, when: "transcriptWhole", do: "findVideoEnd", perRunMicros: null, perDayMicros: null, maxMinutes: null, maxMb: null, watchedSeconds: null, aiAction: null };
+    const next = JSON.stringify([...kept, find]);
+    db.prepare("UPDATE settings SET value = ? WHERE key = 'rules'").run(next);
+    db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('rules', ?, ?, ?)").run(row.value, next, now);
+  },
 ];
 
 /** Brings a database up to date, or up to step `until` alone (a test of one step starts from the step before it). */
@@ -3344,11 +3366,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
     },
     /**
      * One video as the extension asks of it when it opens: where it was stopped, whether it counts, whether it's
-     * finished, and how close to its end that is (the account's own `finishedWithinSec`), which the extension sees it
-     * played into and says so with a finish mark. Whether it's noted at all is the browser's to say.
+     * finished. Where it's finished (its Video end, else its real end: `finishesAt`) the extension sees it played into
+     * and says so with a finish mark. Whether it's noted at all is the browser's to say.
      */
     watchedVideo(videoId: string): WatchedVideo {
-      const { finishedWithinSec } = settingsFrom(selectSettings.all() as SettingRow[]);
       const last = selectLastWatchStretch.get(videoId) as WatchStretchRow | undefined;
       const said = marksOf(selectVideoWatchMarks.all(videoId) as WatchMarkRow[]).get(videoId);
       const finished = said?.finished ?? false;
@@ -3356,7 +3377,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         stoppedAtMs: last ? stopOf(last.toMs, last.lengthMs, finished) : null,
         counted: said?.counted ?? true,
         finished,
-        finishedWithinMs: finishedWithinSec * 1000,
       };
     },
     /**
