@@ -96,4 +96,4 @@ Each deploy builds it, so panki.pro hands out the extension of its own commit; n
 - **From Panki**: Settings → Extension → Download, extract to a folder you keep, Load unpacked in `chrome://extensions` (Developer mode). On a newer build, run **Update Panki** in that folder, then Reload Panki.
 - **From this repo**: Load unpacked `apps/extension/dist/chrome`; after a rebuild, its reload arrow and reload open YouTube tabs.
 - **Firefox**: `about:debugging#/runtime/this-firefox` → Load Temporary Add-on → `manifest.json`; forgotten on closing.
-- **Set up**: its page opens the first time: where Panki is (`127.0.0.1:5173` in dev), sign in, allow the address; switch Field mapping on for a deck; import a dictionary.
+- **Set up**: its page opens the first time: where Panki is (`127.0.0.1:5173` in dev), sign in, allow the address; set each card type's Field mapping in Panki's card type editor; import a dictionary.

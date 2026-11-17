@@ -81,6 +81,8 @@ export const TOUCH_UP_WORDS = {
   dismissAll: "Dismiss all",
   /** Under a value Panki AI wrote and then changed by hand: taking the AI's mark off it, so it's the owner's. */
   unmarkAi: "Unmark as Panki AI's",
+  /** Over a field a message requires, while Panki AI works on it, for a screen reader. */
+  working: "Panki AI is touching up",
 };
 
 /** Why nothing can be sent in a card's conversation, said beside its Send (`whyNot`, Explain's too: Panki AI off among them). */

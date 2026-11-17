@@ -16,7 +16,7 @@ Uploaded by an admin, kept for everyone (`shared.sqlite` → `dictionary_files`)
 
 ## What a dictionary provides
 
-`dataKinds.ts` is the one registry of the kinds of data Panki reads from a dictionary, each with its sentence and the pop-up's parts it shows in; which card fields it fills is `roles.ts`'s; the ids and the counting are the contracts' (`tallyTerm`, `tallyMeta`). A record's `provides` is counted from its rows at import, or once on the options page for an older one (`countProvides`). Counts are stated as read, never guessed.
+`dataKinds.ts` is the one registry of the kinds of data Panki reads from a dictionary, each with its sentence and the pop-up's parts it shows in; which card fields it fills is the Field mapping's (the contracts' `roles.ts`, kept on the card type); the ids and the counting are the contracts' (`tallyTerm`, `tallyMeta`). A record's `provides` is counted from its rows at import, or once on the options page for an older one (`countProvides`). Counts are stated as read, never guessed.
 
 ## Undoing endings, looking up, splitting
 
@@ -61,6 +61,6 @@ Uploaded by an admin, kept for everyone (`shared.sqlite` → `dictionary_files`)
 
 ## Into the drawer
 
-`roles.ts` → `DICTIONARY_ROLE`, a record over `dataKinds.ts`'s kinds, so a new kind doesn't build until it has a role. What's typed over a dictionary field is kept apart (`dictTyped`) and let go when another word or other meanings are chosen. The drawer's pick is characters of the sentence (`Chars`), not tokens, so the caller's split and the drawer's never have to agree.
+The contracts' `roles.ts` → `DICTIONARY_ROLE`, a record over `dataKinds.ts`'s kinds, so a new kind doesn't build until it has a role. What's typed over a dictionary field is kept apart (`dictTyped`) and let go when another word or other meanings are chosen. The drawer's pick is characters of the sentence (`Chars`), not tokens, so the caller's split and the drawer's never have to agree.
 
 **Unproven:** `caretPositionFromPoint` reaching YouTube's captions; the capture-phase click stopping a link on a site acting on `pointerdown`; text in an open shadow root or iframe.

@@ -1,102 +1,51 @@
-/** @panki Searching a deck's cards by anything on them, whole, in part or letters in order, romaji as its kana (`searchCards`). */
-import { examplesText, holdsExamples, holdsFile, metaOf, type Card, type CardType, type SrsType } from "@panki/contracts";
-import { kanaOf, looksLikeRomaji } from "./romaji";
+/** @panki Searching cards in the app, a deck's (`searchCards`) and every deck's (`searchEvery`), both the contracts' one `rankCards`, and what's found lit (`lightingOf`). */
+import { cardLighting, rankCards, searchWords, type Card, type CardType, type LitRun, type SearchWords, type SrsType } from "@panki/contracts";
 import { FLAG_WORDS, HOLD_KINDS, placeName } from "./srsKinds";
 
 /**
- * Searching a deck's cards by anything on them, fuzzily: every
- * field's words (a video's title and channel for a field that holds one), its other examples' too, and where it stands
- * (its stage's name, New, the end; snoozed, suspended, flagged). Each word of what's typed must be found somewhere on the card, as a whole value, as
- * part of one, or failing that its letters in order with others between them (行く finds 行きます, "lrnng" finds
- * Learning). Katakana and hiragana count as one, as do full- and half-width letters and capitals; a word typed in
- * romaji is also looked for as the hiragana it reads as ("yobun" finds よぶん; one typed part-way, "yob", as far as it
- * goes; `romaji.ts`). The best matches come first; cards that match alike keep the order picked
- * over the list.
+ * Searching cards in the app. Every place that searches cards goes through here, and here through the contracts' one
+ * function (`textSearch.ts` → `rankCards`, `cardLighting`): what's searched, how a word is found, how cards rank and
+ * how ties fall are decided there alone, so a deck's Search and every deck's can never drift apart. This file only
+ * says where a card stands in the app's words (its stage's name, snoozed, suspended, flagged), which are searched too.
  */
 
-/** How well a word of what's typed is found in some words of the card: the whole of them, part of them, its letters in order, or not at all. */
-const WHOLE = 3;
-const PART = 2;
-const SCATTERED = 1;
+/** A deck's card type and SRS type: what says what a card's values are and where it stands. */
+type Of = { type: CardType; srsType?: SrsType | undefined };
 
-/** Words as they're compared: full- and half-width alike (NFKC), no capitals, katakana as hiragana. */
-function plain(text: string): string {
-  return text.normalize("NFKC").toLowerCase().replace(/[ァ-ヶ]/g, (kana) => String.fromCharCode(kana.charCodeAt(0) - 0x60));
+/** Where a card stands, in the app's words: its place's name, put aside, flagged. */
+function standingOf(card: Card, srsType: SrsType | undefined): string[] {
+  const words: string[] = [];
+  if (srsType) words.push(placeName(srsType, card.place));
+  if (card.hold) words.push(HOLD_KINDS[card.hold.kind].state);
+  if (card.flaggedAt !== null) words.push(FLAG_WORDS.state);
+  return words;
 }
 
-/** Whether every letter of `word` stands in `words`, in its order, others allowed between. */
-function inOrder(word: string, words: string): boolean {
-  let at = 0;
-  for (const letter of word) {
-    at = words.indexOf(letter, at);
-    if (at < 0) return false;
-    at += letter.length;
-  }
-  return true;
+/** Cards, each with its own deck's types, that have every word of `query` on them, the best first, each with its score; none for nothing typed. */
+export function searchEvery<T extends Of & { card: Card }>(items: readonly T[], query: string) {
+  return rankCards(
+    items.map((item) => ({ ...item, standing: standingOf(item.card, item.srsType) })),
+    query,
+  );
 }
 
-function scoreIn(word: string, words: string): number {
-  if (words === word) return WHOLE;
-  if (words.includes(word)) return PART;
-  return inOrder(word, words) ? SCATTERED : 0;
+/** A deck's cards searched (`searchEvery`, the same search); all of them, as they are, for nothing typed. */
+export function searchCards(cards: readonly Card[], query: string, of: Of): Card[] {
+  if (searchWords(query).length === 0) return [...cards];
+  return searchEvery(
+    cards.map((card) => ({ card, ...of })),
+    query,
+  ).map((found) => found.card);
 }
 
-/**
- * A word as it's looked for: as typed, and, typed in romaji, as hiragana too. One still being typed ends in a letter
- * or two that are no syllable yet ("yob", "kish"): it's looked for as far as it reads ("よ", "き"). Only those last
- * letters are let go, so a word that isn't romaji ("apprnt") doesn't shrink to a kana or two that'd match anything.
- */
-function formsOf(word: string): string[] {
-  if (!looksLikeRomaji(word)) return [word];
-  const typing = /^(.+?)[^aiueo'-]{1,2}$/.exec(word)?.[1];
-  const kana = kanaOf(word) ?? (typing ? kanaOf(typing) : null);
-  return kana ? [word, kana] : [word];
-}
+export type Lighting = {
+  /** Any words of the card's, its found parts lit. */
+  runs: (text: string) => LitRun[];
+  /** The first of the card's values found in, as it stands on the card: where to say it was found when what's drawn of the card doesn't show it. */
+  foundIn: string | null;
+};
 
-/** Everything on a card that can be searched for, each as compared. */
-function textsOf(card: Card, type: CardType, srsType: SrsType | undefined): string[] {
-  const texts: string[] = [];
-  const valuesOf = (values: Readonly<Record<string, string>>) => {
-    for (const field of type.fields) {
-      const value = (values[field.id] ?? "").trim();
-      if (value === "" || holdsFile(field.kind)) continue;
-      const meta = metaOf(field.kind, value);
-      if (meta) texts.push(...[meta.title, meta.channel?.name ?? ""].filter((t) => t !== ""));
-      // Example sentences by their words, every line of every row, never the JSON they're kept as.
-      else if (holdsExamples(field.kind)) texts.push(examplesText(value));
-      else texts.push(value);
-    }
-  };
-  valuesOf(card.values);
-  for (const example of card.examples) valuesOf(example.values);
-  if (srsType) texts.push(placeName(srsType, card.place));
-  // How it stands besides: put aside, flagged.
-  if (card.hold) texts.push(HOLD_KINDS[card.hold.kind].state);
-  if (card.flaggedAt !== null) texts.push(FLAG_WORDS.state);
-  return texts.map(plain);
-}
-
-/** The cards that have every word of `query` on them somewhere, the best matches first; all of them, as they are, for nothing typed. */
-export function searchCards(cards: readonly Card[], query: string, of: { type: CardType; srsType?: SrsType | undefined }): Card[] {
-  const words = plain(query)
-    .split(/\s+/)
-    .filter((word) => word !== "")
-    .map(formsOf);
-  if (words.length === 0) return [...cards];
-  const scored: { card: Card; score: number }[] = [];
-  for (const card of cards) {
-    const texts = textsOf(card, of.type, of.srsType);
-    let score = 0;
-    for (const forms of words) {
-      const best = Math.max(0, ...forms.flatMap((word) => texts.map((text) => scoreIn(word, text))));
-      if (best === 0) {
-        score = 0;
-        break;
-      }
-      score += best;
-    }
-    if (score > 0) scored.push({ card, score });
-  }
-  // A stable sort: cards that match alike keep the order they came in.
-  return scored.sort((a, b) => b.score - a.score).map((entry) => entry.card);
+/** What was found of `words` on a card, to light wherever it's drawn (`cardLighting`). */
+export function lightingOf(card: Card, words: SearchWords, of: Of): Lighting {
+  return cardLighting({ card, type: of.type, standing: standingOf(card, of.srsType) }, words);
 }

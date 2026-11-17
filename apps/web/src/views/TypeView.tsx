@@ -1,5 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import { NewCardType, holdsExamples, holdsLine, holdsWords, wordsFieldOf, type CardField, type CardType, type FieldKind, type NewCardType as NewCardTypeShape } from "@panki/contracts";
+import {
+  NewCardType,
+  ROLES,
+  ROLE_IDS,
+  SOURCE_WORDS,
+  holdsExamples,
+  holdsLine,
+  holdsWords,
+  mapOf,
+  mappingFixed,
+  roleOf,
+  withMap,
+  withRole,
+  wordsFieldOf,
+  type CardField,
+  type CardType,
+  type FieldKind,
+  type NewCardType as NewCardTypeShape,
+  type RoleId,
+} from "@panki/contracts";
 import { Ask } from "../components/Ask";
 import { Button } from "../components/Button";
 import { Dropdown } from "../components/Dropdown";
@@ -27,6 +46,13 @@ const ONE_PER_TYPE: readonly ((kind: FieldKind) => boolean)[] = [holdsLine, hold
 
 /** The Main field's choice of none, beside the fields' ids. */
 const NO_MAIN = "none";
+/** The Field mapping's choice of nothing, beside the pieces: the field is typed into. */
+const TYPED = "typed" as const;
+/** Every piece, offered to every field so the whole list is always in sight; what can't go in a field of its kind is there greyed. Where each comes from at its right. */
+const fillOptions = (field: CardField) => [
+  { id: TYPED, label: "None", note: "Typed by you" },
+  ...ROLE_IDS.map((role) => ({ id: role, label: ROLES[role].name, note: SOURCE_WORDS[ROLES[role].from], disabled: !ROLES[role].takes(field) })),
+];
 
 function nameInputId(fieldId: string) {
   return `field-name-${fieldId}`;
@@ -57,7 +83,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   const [id] = useState(() => type?.id ?? crypto.randomUUID());
   const [name, setName] = useState(type?.name ?? "");
   // A new type starts with one field on the front, because a card needs something there.
-  const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false, perExample: false }]);
+  const [fields, setFields] = useState<CardField[]>(() => type?.fields ?? [{ id: crypto.randomUUID(), name: "", kind: "text", side: "front", required: true, tellsApart: false, perExample: false, fills: null }]);
   /** The field its cards are called by, as picked here: none until one is, never assumed. */
   const [mainField, setMainField] = useState<string | null>(type?.mainField ?? null);
   /** What's saved, to tell changes by; a new type's is how it starts, so an untouched one has nothing to lose. */
@@ -90,6 +116,10 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   /** The fields a card can be called by, and compared on: those that hold words. */
   const wordFields = fields.filter((f) => holdsWords(f.kind));
   const fieldLabel = (field: CardField) => field.name.trim() || `Field ${fields.indexOf(field) + 1}`;
+  /** What fills each field as it stands here, held to what each field's kind can take (`mapOf`). */
+  const map = mapOf({ fields });
+  /** A field given a piece, or none: the piece leaves whichever field had it (`withRole`). */
+  const fill = (fieldId: string, role: RoleId | null) => setFields((prev) => withMap(prev, withRole(mapOf({ fields: prev }), fieldId, role)));
 
   // While there's unsaved work, leaving asks first: the app's own question for its screens, and the browser's for a
   // reload or a closed tab.
@@ -136,7 +166,7 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
     else add();
   }
   function add() {
-    const field: CardField = { id: crypto.randomUUID(), name: "", kind: "text", side: "back", required: false, tellsApart: false, perExample: false };
+    const field: CardField = { id: crypto.randomUUID(), name: "", kind: "text", side: "back", required: false, tellsApart: false, perExample: false, fills: null };
     setFields((prev) => [...prev, field]);
     setFocusId(field.id);
   }
@@ -144,7 +174,8 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
   /** Save: what's on screen becomes the type. Says whether it did. */
   async function save(): Promise<boolean> {
     if (saving) return false;
-    const parsed = NewCardType.safeParse({ id, name, fields, mainField: called?.id ?? null });
+    // What fills each field is saved as it's shown: a piece a field's new kind can't take goes.
+    const parsed = NewCardType.safeParse({ id, name, fields: withMap(fields, map), mainField: called?.id ?? null });
     if (!parsed.success) {
       let nameProblem: string | undefined;
       const fieldProblems: Record<string, string> = {};
@@ -309,6 +340,21 @@ export function TypeView({ type, onSave, onRemove, onStatus, onGuard }: Props) {
                     value={field.kind}
                     onChange={(kind) => edit(field.id, { kind })}
                   />
+                  {/* What fills it by itself as a card is added from a page or a video; a Line and Example sentences take theirs whatever's set. */}
+                  <span className="field-fill">
+                    <span className="field-fill-label" aria-hidden="true">
+                      Field mapping
+                    </span>
+                    <Dropdown<RoleId | typeof TYPED>
+                      id={`field-fill-${field.id}`}
+                      label="Field mapping"
+                      options={fillOptions(field)}
+                      value={roleOf(map, field.id) ?? TYPED}
+                      columns={{ choice: "Fill with", note: "Source" }}
+                      disabled={mappingFixed(field)}
+                      onChange={(role) => fill(field.id, role === TYPED ? null : role)}
+                    />
+                  </span>
                   <Toggle id={`field-required-${field.id}`} says={{ on: "Required", off: "Optional" }} on={field.required} onChange={(required) => edit(field.id, { required })} />
                   {/* The field cards are called by is the card's own: it's how a card that's already there is found to give another example to. */}
                   {field.id !== called?.id ? (

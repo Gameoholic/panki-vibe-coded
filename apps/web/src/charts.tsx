@@ -23,7 +23,8 @@ export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
  * Thin columns on a hairline, the largest named on its cap, a label under each that has one. `stacks` draws each
  * column as its parts, bottom up, each in its colour; `ticks` a dashed mark at each column's own line (a limit). The
  * column `now` is lit, those from `ahead` on fainter. A column never vanishes: a small share still shows a stub, and
- * one at nothing a faint one (`is-zero`), so a gap in the row never reads as a day or an hour missing.
+ * one at nothing a faint one (`is-zero`), so a gap in the row never reads as a day or an hour missing. `note` says
+ * something quieter after the cap (Coming up's running total, "56 · 87 total"), nothing where it gives `null`.
  */
 export function Columns({
   values,
@@ -33,6 +34,7 @@ export function Columns({
   now = -1,
   ahead = -1,
   cap = (v: number) => v.toLocaleString(),
+  note,
   ticks,
   stacks,
 }: Pointed & {
@@ -42,12 +44,14 @@ export function Columns({
   now?: number;
   ahead?: number;
   cap?: (v: number) => string;
+  note?: (j: number) => string | null;
   ticks?: readonly number[];
   stacks?: readonly (readonly { n: number; colour: string }[])[];
 }) {
   const [atJ, setAtJ] = useState<number | null>(null);
   const max = Math.max(0, ...values, ...(ticks ?? []));
   const top = Math.max(0, ...values) > 0 ? values.indexOf(Math.max(...values)) : -1;
+  const topNote = top >= 0 && note ? note(top) : null;
   const point = (j: number) => {
     setAtJ(j);
     onAt(words(j));
@@ -64,7 +68,10 @@ export function Columns({
     >
       {values.map((v, j) => (
         <div key={j} className={`w-col ${j === now ? "is-now" : ""} ${ahead >= 0 && j >= ahead ? "is-ahead" : ""} ${atJ === j ? "is-at" : ""} ${v === 0 ? "is-zero" : ""}`.replace(/\s+/g, " ").trim()} onPointerEnter={() => point(j)} onPointerDown={() => point(j)}>
-          <span className="w-col-cap">{j === top ? cap(v) : ""}</span>
+          <span className="w-col-cap">
+            {j === top ? cap(v) : ""}
+            {j === top && topNote ? <span className="w-col-note"> · {topNote}</span> : null}
+          </span>
           <span className="w-col-plot">
             {stacks ? (
               <span className="w-stack" style={{ height: share(v, max) }}>

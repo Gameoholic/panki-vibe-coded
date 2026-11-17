@@ -23,8 +23,9 @@ Paths from `apps/web/src/`.
 | BlurButton | `components/BlurButton.tsx` | Unblur and Blur, the front's own, a chip of glass in the review card's corner (`BlurButton`). Never a second of it. |
 | Board | `components/Board.tsx` | The board: the home's doors and tiles, and every tile on Stats, held to arrange (`Board`). Never a second way of arranging. |
 | Button | `components/Button.tsx` | Every button, its look a `variant`: primary, ghost, row, tab, door, chip, seg, switch, item, node, answer, danger, spoiler. Never a classless `<button>`. |
+| CardConversation | `components/CardConversation.tsx` | A card's conversation with Panki AI on a card opened in a deck (`useCardConversation`): Touch up and every card action, each proposal accepted into the form or dismissed. |
 | CardForm | `components/CardForm.tsx` | A card's form: the Add a card panel, and a card opened to change or delete (`CardForm`). Never a second form for a card. |
-| CardList | `components/CardList.tsx` | Cards as rows (`CardList`). |
+| CardList | `components/CardList.tsx` | Cards as rows (`CardList`), and a card's row wherever one is drawn, what a search found lit (`cardRowCells`). Never a second drawing of a card's row. |
 | CardPreview | `components/CardPreview.tsx` | A card seen as a review would show it, in a deck picked (`CardPreview`). |
 | ClipSubtitles | `components/ClipSubtitles.tsx` | A clip's subtitles on a card, following it as it plays (`ClipSubtitles`). Never a second band. |
 | ColourWheel | `components/ColourWheel.tsx` | A colour of one's own, picked on a wheel (`ColourWheel`). Never the browser's `<input type="color">`. |
@@ -68,6 +69,7 @@ Paths from `apps/web/src/`.
 | RuleEditor | `components/RuleEditor.tsx` | One automation's settings, When, its optional limits, Do, its action, opened in place (`RuleEditor`), and an amount typed (`AmountField`). |
 | RuleFlow | `components/RuleFlow.tsx` | Automations as a flow: each trigger a node, each automation a node joined to it by a line tinted by its use, opened in place (`RuleFlow`). Never a second drawing of them. |
 | ScrollEdges | `components/ScrollEdges.tsx` | A box that scrolls inside itself: a fade at an edge with more past it, and a thin bar while scrolled (`ScrollEdges`). Never the browser's bar, never a second fade. |
+| SearchPalette | `components/SearchPalette.tsx` | Searching every deck's cards, a palette hanging from the top, opened by the bar's Search or its keys (`SearchPalette`, `useSearchKeys`). Never a second search of every deck. |
 | Segmented | `components/Segmented.tsx` | A few choices side by side, one on: tabs inside a deck, a mode, a setting from a short list (`Segmented`). |
 | Setting | `components/Setting.tsx` | One setting as a row: its label, its control, a `why` line only where needed, an `explain` scene, the `perDevice` tag (`Setting`). |
 | ShowButton | `components/ShowButton.tsx` | Show back of card, the button under a review card that turns it (`ShowButton`). Never a second of it. |
@@ -121,7 +123,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | api | `api.ts` | Every call to the API, parsed through the contracts (`api`, `ApiError`), and where a file's bytes are. Never a second client. |
 | geometry | `brand/geometry.ts` | The mark's geometry, its paths and its tile (`MARK_PARTS`, `MARK_SIZE`, `MARK_RADIUS`); the icon files are rendered from it by `pnpm icons`. |
 | cardFilter | `cardFilter.ts` | The ways a deck's cards can be narrowed to some of them, one entry each (`CARD_FILTERS`, `filterOptions`, `filterCards`). A new way is one entry. |
-| cardSearch | `cardSearch.ts` | Searching a deck's cards by anything on them, whole, in part or letters in order, romaji as its kana (`searchCards`). |
+| cardSearch | `cardSearch.ts` | Searching cards in the app, a deck's (`searchCards`) and every deck's (`searchEvery`), both the contracts' one `rankCards`, and what's found lit (`lightingOf`). |
 | cardSort | `cardSort.ts` | The ways a deck's cards can be ordered, one entry each, and this device's pick (`CARD_SORTS`, `sortCards`, `readCardSort`). A new way is one entry. |
 | fieldKinds | `fieldKinds.ts` | The kinds a field can be in words (`FIELD_KINDS`, `FIELD_KIND_OPTIONS`, `kindClass`), and what a value's file is (`fileKindOf`). |
 | keys | `keys.ts` | The review's and the players' keys on this device, their defaults, and what a press is (`DEFAULT_KEYS`, `useKeyBinds`, `keyOf`, `pressed`, `heard`). |
@@ -131,7 +133,6 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |
 | playback | `playback.ts` | How loud and how fast each player plays, its own for each field it plays, and whether clips' subtitles show (`usePlaying`, `setVolume`, `setSpeed`, `SPEEDS`, `useSubtitlesShown`). |
 | reviewLine | `reviewLine.ts` | A review's line of cards: today's queue, the line moving on, what's left, how far through (`buildQueue`, `startLine`, `advance`, `togoOf`, `leftOf`, `progressOf`, `KINDS`). |
-| romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | routes | `routes.ts` | Every screen's address: its path, and the screen a path names (`Route`, `routePath`, `parsePath`). |
 | ruleKinds | `ruleKinds.ts` | Automations in words and fields: a sentence (`ruleWords`), optional limits and knobs (`RULE_LIMITS`, `RULE_KNOBS`), amounts, icons, a line's tint (`lineTint`). |
 | shuffle | `shuffle.ts` | A list shuffled, on a copy (`shuffle`). |
@@ -175,12 +176,14 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | layout | `layout.ts` | How a type's cards look in a review: each field's part, side, column, size, tone, look and marks (`CardLayout`, `COLUMNS`, `FaceShow`, `AutoPlay`). |
 | media | `media.ts` | A file on a card: its kind, types, weight limits, subtitle cues and how it was recorded (`MediaId`, `MediaKind`, `MEDIA_MIMES`, `MediaCues`, `MediaRecording`). |
 | pace | `pace.ts` | How long what's left of a review takes, at the deck's pace and where each card's word falls in its clip (`timeLeftMs`, `cardLeftMs`, `countsLeft`, `countedMs`). |
-| pieces | `pieces.ts` | Prompt context's pieces, one registry shared with the extension's field mapping (`PROMPT_PIECE_IDS`, `PIECE_NAMES`, `PIECE_SOURCES`, `variableOf`). |
+| pieces | `pieces.ts` | Prompt context's pieces, one registry shared with the Field mapping (`PROMPT_PIECE_IDS`, `PIECE_NAMES`, `PIECE_SOURCES`, `variableOf`). |
 | pitch | `pitch.ts` | A pitch accent as a field holds it, read leniently (`PitchAccent`, `pitchesOf`, `moraeOf`, `isHigh`, `pitchValue`). |
 | prompt | `prompt.ts` | A Panki AI prompt filled from its pieces, what Explain sends and answers, and a call's cost before it runs (`aiSent`, `ExplainMessage`, `ExplainShape`, `ceilingMicros`). |
 | proofread | `proofread.ts` | Proofread as shapes: its answer, the rules it's held to, its batches, a transcript's undo (`ProofreadShape`, `proofreadProblem`, `batchesOf`, `TranscriptUndo`). |
 | recap | `recap.ts` | A finished video's recap as Panki works it out (`VideoRecap`, `RECAP`, `sessionsOf`, `watchedOf`): its cards, its watch sessions, its channel, what's next. |
 | reviewSettings | `reviewSettings.ts` | How every review runs, the account's, the same for every deck, and the defaults (`ReviewSettings`, `DEFAULT_REVIEW_SETTINGS`, `ExampleShown`, `againPlaceOf`). |
+| roles | `roles.ts` | The Field mapping: what can fill a card's field by itself, and which field of a card type takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `mapOf`, `valuesFor`). Never a guess. |
+| romaji | `romaji.ts` | Romaji as hiragana, Hepburn, Kunrei and a keyboard's way alike (`kanaOf`, `looksLikeRomaji`). Never a library for it. |
 | rules | `rules.ts` | Automations (rules in code): every automatic run, When a trigger → Do an action → At most a cap (`RULE_TRIGGERS`, `RULE_ACTIONS`, `Rule`, `ruleProblem`, `RuleStanding`). |
 | space | `space.ts` | What's left on the disk, what Panki's data takes of it, and bytes in words (`Space`, `StorageReport`, `sizeWords`). Measuring it is the API's alone. |
 | srs | `srs.ts` | SRS types and what an answer does to a card: stages, flows, waits, holds, and the account's settings (`SrsType`, `Flow`, `resolve`, `dueAt`, `isNew`, `Settings`). |
@@ -188,6 +191,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | stageColour | `stageColour.ts` | A stage's colour for the app, the API and the extension alike: its own, else the ramp's; Burned's; New's (`stageColourAt`, `placeColour`, `STAGE_RAMP`). |
 | streaks | `streaks.ts` | Streaks: goal kinds and streak types, one registry each (`GOAL_KINDS`, `STREAK_PERIODS`, `StreakRule`, `goalMax`, `groupsSwitchedTo`, `goalMet`, `minutesWords` by `Rounding`). |
 | subtitleStyle | `subtitleStyle.ts` | How subtitles look over a picture: the shape, its bounds, its fonts, the CSS variables a band reads (`SubtitleStyle`, `SUBTITLE_BOUNDS`, `SUBTITLE_FONTS`, `subtitleVars`). |
+| textSearch | `textSearch.ts` | Searching cards, the one function every place uses (`rankCards`, `cardLighting`), and how a word is found in text (`searchWords`, `matchTexts`, `lighterOf`). |
 | touchUp | `touchUp.ts` | Touch up and each place's one answer shape: what it judges, the fixed parts, its rules (`AnswerShape`, `ANSWER_FIXED`, `FIELD_KEYS`, `FieldVerdict`, `touchUpProblem`). |
 | transcriptLines | `transcriptLines.ts` | A transcript's words cut into lines, the one rule of where a line ends, for the page's rows and the server's Proofread alike (`cutLines`, `lineWidthOf`). |
 | transcription | `transcription.ts` | A video transcribed, as shapes: engines, settings, modes, chunks, the transcript, a line fixed (`ENGINES`, `Transcription`, `TRANSCRIBE_MODES`, `Transcript`). |
@@ -232,7 +236,6 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | panki | `panki.ts` | Calling Panki from the extension (`panki`, `PankiError`). Never a second client. |
 | popupKinds | `popupKinds.ts` | The Word pop-up's layout in words: each part's name, what it's for, its choices (`PART_NAMES`, `PART_ABOUT`, `SHOW_OPTIONS`, `bandOf`). |
 | popupLayout | `popupLayout.ts` | How the Word pop-up is laid out, as kept, and the moves on it (`PopupLayout`, `popupLayoutOf`, `moveBodyPart`, `withMeanings`). |
-| roles | `roles.ts` | What the extension can fill a field with by itself, and which field takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `valuesFor`). Never a guess. |
 | seekLook | `seekLook.ts` | How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`). |
 | storage | `storage.ts` | What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). |
 | subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |

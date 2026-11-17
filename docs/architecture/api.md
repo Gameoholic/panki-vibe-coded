@@ -36,7 +36,7 @@ Mounted in `app.ts`, in that order (the protocol check and the login before `req
 | `/api/srs` | `srs.ts` | SRS types. Hiding a stage with cards needs `moves` (`409 { needsMoves }` without); a built-in type is `409` to `PATCH` and `DELETE` |
 | `/api/settings` | `settings.ts` | The account's settings over the defaults |
 | `/api/decks` | `decks.ts` | Decks, and under them cards, answers, Undo, examples, holds, flags and sessions (below) |
-| `/api/cards` | `cards.ts` | Reads across decks: the cards called by some words (what a card about to be added says is there already) and every word the cards are called by |
+| `/api/cards` | `cards.ts` | Reads across decks: every living card, deck by deck (`GET /`, what searching every deck reads; `db.everyCard`, which pins no example, unlike a deck's own list), the cards called by some words (what a card about to be added says is there already) and every word the cards are called by |
 | `/api/media` | `media.ts` | A card's files: upload, serve, and a clip's cues and recording facts, each written once |
 | `/api/word-audio`, `/api/forvo` | `wordAudio.ts`, `forvo.ts` | Where word audio comes from (admin), Forvo's recordings of a word, one kept as the account's file (`forvo.md`) |
 | `/api/dictionaries` | `dictionaries.ts` | Dictionaries kept on Panki for everyone; upload and remove are admin's (`dictionary.md`) |

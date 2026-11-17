@@ -291,3 +291,23 @@ test("58 leaves a list that already transcribes the entire video, one that isn't
   assert.equal(rulesOf(none), undefined);
   assert.deepEqual(rulesLogged(none), []);
 });
+
+test("59 gives every field a Field mapping of none and touches nothing kept before", () => {
+  const db = atStep(58);
+  insert(db, "card_types", { id: "type" });
+  insert(db, "card_fields", { id: "word", type_id: "type", kind: "text", side: "front" });
+  insert(db, "card_fields", { id: "gone", type_id: "type", kind: "media", side: "back", removed_at: NOW });
+  const before = dump(db);
+  migrate(db, NOW, 59);
+  assert.equal(version(db), 59);
+  const fills = columnsOf(db, "card_fields").find((c) => c.name === "fills");
+  assert.ok(fills, "card_fields.fills is there");
+  assert.equal(fills.notnull, 0);
+  const after = dump(db);
+  assert.deepEqual(Object.keys(after), Object.keys(before));
+  assert.deepEqual(
+    after.card_fields?.map(({ fills: kept, ...rest }) => [kept, rest]),
+    before.card_fields?.map((row) => [null, row]),
+  );
+  for (const table of Object.keys(before).filter((t) => t !== "card_fields")) assert.deepEqual(after[table], before[table], `${table} as it was`);
+});

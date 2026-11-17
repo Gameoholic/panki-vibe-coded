@@ -135,7 +135,7 @@ function KeyRow({ id, label, bind, slot, binds, disabled = false }: { id: string
 }
 
 /**
- * Settings → Keybinds: the home's and the review's keys on this device (`keys.ts`), each set by pressing it and each pressed or held for
+ * Settings → Keybinds: the keys on this device heard on every screen, the home's and the review's (`keys.ts`), each set by pressing it and each pressed or held for
  * a time of its own, and how much longer an answer that requires confirmation is held on top.
  */
 export function KeysPanels() {
@@ -158,6 +158,13 @@ export function KeysPanels() {
           Keybinds
         </h2>
         <Setting id="keybinds" label="Enabled" control={<Toggle id="keybinds" says={{ on: "On", off: "Off" }} on={enabled} onChange={setKeybindsEnabled} />} />
+      </section>
+      {/* Heard on every screen, so its key is taken from whatever else had it on any screen. */}
+      <section className="panel" aria-labelledby="keys-search-title">
+        <h2 id="keys-search-title" className="panel-title">
+          Search
+        </h2>
+        <KeyRow id="search" label="Open search" bind={binds.search} slot={{ kind: "search" }} binds={binds} disabled={off} />
       </section>
       <section className="panel" aria-labelledby="keys-home-title">
         <h2 id="keys-home-title" className="panel-title">

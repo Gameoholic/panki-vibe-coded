@@ -1,37 +1,21 @@
-/** @panki What the extension can fill a field with by itself, and which field takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `valuesFor`). Never a guess. */
-import { z } from "zod";
-import { CardFieldId, PIECE_NAMES, SOURCE_WORDS, TOUCH_UP, holdsExamples, holdsLine, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type DataKind, type PieceSource, type TouchUpKey } from "@panki/contracts";
-import { DATA_KINDS } from "./dataKinds";
+/** @panki The Field mapping: what can fill a card's field by itself, and which field of a card type takes which (`ROLES`, `DICTIONARY_ROLES`, `FieldMap`, `mapOf`, `valuesFor`). Never a guess. */
+import type { TouchUpKey } from "./accountActions";
+import { DATA_KIND_NAMES, type DataKind } from "./dictionaryRows";
+import { PIECE_NAMES, type PieceSource } from "./pieces";
+import { TOUCH_UP } from "./touchUp";
+import { ROLE_IDS, holdsExamples, holdsLine, holdsLink, holdsPitch, holdsWords, isTyped, mediaKindsOf, type CardField, type CardType, type RoleId } from "./type";
 
 /**
- * What the extension can fill in by itself, one registry: each piece of a capture, what the settings page calls it,
- * and which of a card type's fields can take it. Card types are the account's own data, so nothing here knows a field
- * by its name: which field takes which piece is said once per deck (a `FieldMap`), by the field's id. A field that
- * takes no piece is typed into in the drawer. A new piece is one entry.
+ * What can fill in a field by itself, one registry: each piece of a capture, what the Field mapping calls it, and which
+ * of a card type's fields can take it. Card types are the account's own data, so nothing here knows a field by its
+ * name: which field takes which piece is the card type's own, kept on each field (`CardField.fills`), by the field's
+ * id. A field that takes no piece is typed into. A new piece is an id (`type.ts` → `ROLE_IDS`) and one entry here.
  */
-export const ROLE_IDS = [
-  "word",
-  "dictForm",
-  "dictReading",
-  "dictMeaning",
-  "dictTags",
-  "dictWordType",
-  "dictFrequency",
-  "dictPitch",
-  "sentence",
-  "clip",
-  "wordAudio",
-  "forvoAudio",
-  "source",
-  "explanation",
-  "examples",
-] as const;
-export type RoleId = (typeof ROLE_IDS)[number];
 
 /**
  * Every kind of data Panki reads from a dictionary is a piece a field can take, there as an option without being
- * asked for. A kind added to `dataKinds.ts` doesn't build until it
- * has its piece here, and its piece's name is the kind's own.
+ * asked for. A kind added to the contracts' `DATA_KIND_IDS` doesn't build until it has its piece here, and its piece's
+ * name is the kind's own.
  */
 export const DICTIONARY_ROLE: Record<DataKind, RoleId> = {
   form: "dictForm",
@@ -49,41 +33,41 @@ export type Cut = "clip" | "word";
 
 /**
  * Where a piece comes from: the words pointed at (a video's subtitles, or a page), the dictionaries, the video itself,
- * or Forvo (word audio recorded by people, fetched with Panki's key: `forvo.ts`). The contracts' own, with how each
- * is said, since Panki AI's Prompt context says the same (`prompt.ts`): one name for each, wherever it's shown.
+ * Forvo (word audio recorded by people, fetched with Panki's key), or Touch up. Prompt context's own, with how each is
+ * said (`pieces.ts` → `SOURCE_WORDS`): one name for each, wherever it's shown.
  */
 export type Source = PieceSource;
-export { SOURCE_WORDS };
 
 type Role = {
   name: string;
   from: Source;
   /** Whether a field can take it. */
-  takes: (field: CardField) => boolean;
+  takes: (field: Pick<CardField, "kind">) => boolean;
   /** For a piece that's recorded off the video: which stretch it is, and whether it's kept as sound alone or with its picture. */
   cut?: { of: Cut; soundOnly: boolean };
-  /** For a piece the dictionary gives: which kind of its data it is (`dataKinds.ts`), and so what a dictionary needs to provide to fill it. */
+  /** For a piece the dictionary gives: which kind of its data it is, and so what a dictionary needs to provide to fill it. */
   dictionary?: DataKind;
 };
 
+type Takes = Role["takes"];
 /** Words of any piece but the sentence: a Line is the sentence's alone (`cleanMap`). */
-const holdsText = (field: CardField) => holdsWords(field.kind) && !holdsLine(field.kind);
+const holdsText: Takes = (field) => holdsWords(field.kind) && !holdsLine(field.kind);
 /** The sentence goes in words, a Line above all. */
-const holdsSentence = (field: CardField) => holdsWords(field.kind);
+const holdsSentence: Takes = (field) => holdsWords(field.kind);
 /** What's recorded off a video goes where a clip or a sound can. */
-const holdsClip = (field: CardField) => {
+const holdsClip: Takes = (field) => {
   const kinds = mediaKindsOf(field.kind);
   return kinds.includes("video") || kinds.includes("audio");
 };
 /** A recording of a word is a sound, and goes only where a sound can. */
-const holdsSound = (field: CardField) => mediaKindsOf(field.kind).includes("audio");
+const holdsSound: Takes = (field) => mediaKindsOf(field.kind).includes("audio");
 /** A pitch accent goes only where a pitch accent is drawn, and nothing else goes there but what's typed. */
-const holdsAccent = (field: CardField) => holdsPitch(field.kind);
+const holdsAccent: Takes = (field) => holdsPitch(field.kind);
 /** A kind of the dictionary's data as a piece, called what the kind is called: words, or a pitch accent. */
-const fromDictionary = (kind: DataKind): Role => ({ name: DATA_KINDS[kind].name, from: "dictionary", takes: kind === "pitch" ? holdsAccent : holdsText, dictionary: kind });
+const fromDictionary = (kind: DataKind): Role => ({ name: DATA_KIND_NAMES[kind], from: "dictionary", takes: kind === "pitch" ? holdsAccent : holdsText, dictionary: kind });
 
 /**
- * The pieces that are words go by Prompt context's names (`PIECE_NAMES`), the one name each has in the field mapping
+ * The pieces that are words go by Prompt context's names (`PIECE_NAMES`), the one name each has in the Field mapping
  * and in a Panki AI prompt alike; the dictionary's go by their kind's, which are the same names.
  */
 export const ROLES: Record<RoleId, Role> = {
@@ -111,8 +95,9 @@ export const ROLES: Record<RoleId, Role> = {
   // Where the card came from: the link that opens the video at its moment goes into the field; the rest of the source
   // (the video's name, the channel's name and address) is kept beside the card as its `source`, all one piece.
   source: { name: PIECE_NAMES.source, from: "video", takes: (field) => holdsLink(field.kind) },
-  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself: the word in general, and made-up sentences as rows of a situation, a sentence and its translation. Two fields, not one, so the layout
-  // places each on its own. Nothing fills them as the drawer opens; their names are Touch up's (`TOUCH_UP`).
+  // What only Touch up fills, always Panki AI's words and always proposed, never written by itself: the word in
+  // general, and made-up sentences as rows of a situation, a sentence and its translation. Two fields, not one, so the
+  // layout places each on its own. Nothing fills them as a card is captured; their names are Touch up's (`TOUCH_UP`).
   explanation: { name: TOUCH_UP.explanation.name, from: "ai", takes: holdsText },
   // Rows of examples go only where rows are kept, and nothing else goes there but what's typed.
   examples: { name: TOUCH_UP.examples.name, from: "ai", takes: (field) => holdsExamples(field.kind) },
@@ -124,44 +109,45 @@ export const roleOfKey = (key: TouchUpKey): RoleId | null => ROLE_IDS.find((role
 /** The pieces the dictionaries give: what they can fill a card's fields with. */
 export const DICTIONARY_ROLES = ROLE_IDS.filter((role): role is DictionaryRoleId => ROLES[role].dictionary !== undefined);
 
-const KNOWN: ReadonlySet<string> = new Set(ROLE_IDS);
-
 /**
- * Which field of a deck's card type takes which piece: role → field id. A piece left out goes nowhere. A map kept
- * from before may name a piece that's no longer one (the reading and the meaning were, once: they're typed now, like
- * any field nothing fills; so were the line as a sound and the word as a video); that's let go and the rest of the map stands.
+ * Which field of a card type takes which piece: role → field id, read off its fields (`mapOf`). A piece left out goes
+ * nowhere. A piece kept on a field that's no longer one reads as none (`CardField.fills`).
  */
-export const FieldMap = z.preprocess(
-  (raw) => (typeof raw === "object" && raw !== null ? Object.fromEntries(Object.entries(raw).filter(([role]) => KNOWN.has(role))) : raw),
-  z.partialRecord(z.enum(ROLE_IDS), CardFieldId),
-);
-export type FieldMap = z.infer<typeof FieldMap>;
+export type FieldMap = Partial<Record<RoleId, string>>;
+
+/** Whether a field takes its piece whatever's set: a Line is always the sentence, Example sentences always Touch up's examples. */
+const fixedRoleOf = (field: Pick<CardField, "kind">): RoleId | null => (holdsLine(field.kind) ? "sentence" : holdsExamples(field.kind) ? "examples" : null);
 
 /** The map with only what still holds: a field that's been hidden, or changed to a kind its piece can't go in, drops out. */
-export function cleanMap(map: FieldMap, type: CardType): FieldMap {
+export function cleanMap(map: FieldMap, type: Pick<CardType, "fields">): FieldMap {
   const clean: FieldMap = {};
   for (const role of ROLE_IDS) {
     const field = type.fields.find((f) => f.id === map[role]);
     if (field && ROLES[role].takes(field)) clean[role] = field.id;
   }
-  // A type's Line is the sentence by itself, whatever the map says: no other piece goes there (`holdsText`).
-  const line = type.fields.find((f) => holdsLine(f.kind));
-  if (line) clean.sentence = line.id;
-  // A type's Example sentences field is Touch up's examples by itself, the same way: it's the one field rows go in.
-  const examples = type.fields.find((f) => holdsExamples(f.kind));
-  if (examples) clean.examples = examples.id;
+  // A type's Line is the sentence by itself, whatever the map says: no other piece goes there (`holdsText`). Its
+  // Example sentences field is Touch up's examples by itself, the same way: it's the one field rows go in.
+  for (const field of type.fields) {
+    const fixed = fixedRoleOf(field);
+    if (fixed) clean[fixed] = field.id;
+  }
   return clean;
 }
 
-/**
- * Whether a deck's field mapping is switched on: whether the extension adds cards to it. **Off until it's switched
- * on**, deck by deck. The one
- * exception is a courtesy to what was set up before there was a switch: a deck that already has something mapped and
- * has never been switched counts as on, so it goes on working; the first press of its switch settles it either way.
- */
-export function mappingOn(switched: Readonly<Record<string, boolean>>, maps: Readonly<Record<string, FieldMap>>, deckId: string): boolean {
-  return switched[deckId] ?? Object.keys(maps[deckId] ?? {}).length > 0;
+/** A card type's Field mapping as it stands: what its fields keep (`CardField.fills`), each piece once, held to what still fits (`cleanMap`). */
+export function mapOf(type: Pick<CardType, "fields">): FieldMap {
+  const kept: FieldMap = {};
+  for (const field of type.fields) if (field.fills && kept[field.fills] === undefined) kept[field.fills] = field.id;
+  return cleanMap(kept, type);
 }
+
+/** The fields with a map written onto them, as the card type keeps it: each field its piece, or none. */
+export function withMap<F extends CardField>(fields: readonly F[], map: FieldMap): F[] {
+  return fields.map((field) => ({ ...field, fills: roleOf(map, field.id) }));
+}
+
+/** Whether a field takes its piece whatever's set, so the Field mapping shows it and can't change it. */
+export const mappingFixed = (field: Pick<CardField, "kind">): boolean => fixedRoleOf(field) !== null;
 
 /** The piece a field takes, or null when nothing fills it. */
 export function roleOf(map: FieldMap, fieldId: string): RoleId | null {
@@ -181,7 +167,7 @@ export function withRole(map: FieldMap, fieldId: string, role: RoleId | null): F
  * was typed into it when it takes none, or takes one only Panki AI fills (`typed`, by field id: what Touch up wrote
  * there once accepted, or the viewer's own words). A clip follows its card, so a field that takes one has no value here.
  */
-export function valuesFor(type: CardType, map: FieldMap, taken: Partial<Record<RoleId, string>>, typed: Readonly<Record<string, string>>): Record<string, string> {
+export function valuesFor(type: Pick<CardType, "fields">, map: FieldMap, taken: Partial<Record<RoleId, string>>, typed: Readonly<Record<string, string>>): Record<string, string> {
   const values: Record<string, string> = {};
   for (const field of type.fields) {
     const role = roleOf(map, field.id);

@@ -18,6 +18,31 @@ export const FieldSide = z.enum(["front", "back"]);
  */
 export const FieldKind = z.enum(["text", "long", "line", "examples", "media", "image", "youtube", "pitch"]);
 
+/**
+ * What can fill a field by itself, the Field mapping's pieces: the ids live here so the API refuses one that doesn't
+ * exist, and a field can name one (`CardField.fills`); what each is called, where it comes from and which kinds of field
+ * take it is `roles.ts` → `ROLES`.
+ */
+export const ROLE_IDS = [
+  "word",
+  "dictForm",
+  "dictReading",
+  "dictMeaning",
+  "dictTags",
+  "dictWordType",
+  "dictFrequency",
+  "dictPitch",
+  "sentence",
+  "clip",
+  "wordAudio",
+  "forvoAudio",
+  "source",
+  "explanation",
+  "examples",
+] as const;
+export const RoleId = z.enum(ROLE_IDS);
+export type RoleId = z.infer<typeof RoleId>;
+
 /** The kinds of file each kind of field takes. One home: a kind that isn't here holds no file. */
 const FILES_IN: Partial<Record<FieldKind, readonly MediaKind[]>> = {
   media: ["video", "audio"],
@@ -110,6 +135,12 @@ export const CardField = z.object({
    * each example's own. Off, the field is the card's alone, as every field was before. Left out, it's off.
    */
   perExample: z.boolean().default(false),
+  /**
+   * What fills it by itself as a card is added from a page or a video, its Field mapping (`roles.ts`): one of the pieces a
+   * capture brings, or null, typed in. The card type's, so every browser and Panki itself read the same. A piece that's
+   * no longer one, or none sent, reads as null.
+   */
+  fills: RoleId.nullable().catch(null),
 });
 
 /** What the browser sends to make a type. The ids are minted by the browser, so a retry is harmless. */
@@ -122,7 +153,11 @@ export const NewCardType = z.object({
     .min(1)
     .refine((fields) => fields.filter((field) => holdsLine(field.kind)).length <= 1, { message: "A card type has one Line field at most." })
     // One field of example sentences at most, the one Touch up fills.
-    .refine((fields) => fields.filter((field) => holdsExamples(field.kind)).length <= 1, { message: "A card type has one Example sentences field at most." }),
+    .refine((fields) => fields.filter((field) => holdsExamples(field.kind)).length <= 1, { message: "A card type has one Example sentences field at most." })
+    // A piece fills one field at most, so where it goes is never in doubt.
+    .refine((fields) => new Set(fields.flatMap((field) => (field.fills ? [field.fills] : []))).size === fields.filter((field) => field.fills).length, {
+      message: "Each piece of the Field mapping fills one field at most.",
+    }),
   /** How its cards look in a review (`layout.ts`); left out, it's worked out from the fields' sides. */
   layout: CardLayout.optional(),
   /** Where its cards' stage tag sits and how (`layout.ts` → `StageTag`); left out, as it stands (or the default). */

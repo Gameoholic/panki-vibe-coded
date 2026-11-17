@@ -174,6 +174,20 @@ const sayCards = (n: number) => count(n, "card", "cards");
 /** Where the largest value stands; the first of equals. */
 const argmax = (values: readonly number[]) => values.reduce((best, v, j) => (v > (values[best] ?? 0) ? j : best), 0);
 const sum = (values: readonly number[]) => values.reduce((a, b) => a + b, 0);
+/**
+ * Coming up's running total: how many fall due from the first column to the end of column j, "87 total". The first
+ * column's is its own count, so it says nothing more.
+ */
+function totalsOf(values: readonly number[]): (j: number) => string | null {
+  const runs: number[] = [];
+  values.forEach((v, j) => runs.push((runs[j - 1] ?? 0) + v));
+  return (j) => (j === 0 ? null : `${num(runs[j] ?? 0)} total`);
+}
+/** A column's words with its running total after them, where it has one: "Wed 18 Nov · 56 reviews · 87 total". */
+const withTotal = (said: (j: number) => string, totals: (j: number) => string | null) => (j: number) => {
+  const run = totals(j);
+  return run ? `${said(j)} · ${run}` : said(j);
+};
 
 /**
  * The windows in words, the shared vocabulary of every tile: the control's (Today, This week, Last 7 d, All time; a span
@@ -866,34 +880,37 @@ export const WIDGETS: readonly TileEntry[] = [
         const starts = over.series.series.map((b) => b.start);
         const byDay = over.series.unit === "day";
         const labels = starts.map((d) => (byDay ? dayLabel(d, starts.length, ctx.settings.weekEndsOn) : starts.length <= 13 || dayDate(d).getUTCMonth() % 3 === 0 ? monthWords(d) : ""));
-        const said = (j: number) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
+        const totals = totalsOf(values);
+        const said = withTotal((j) => `${byDay ? (j === 0 ? "Today" : dayWords(starts[j] ?? stats.today)) : monthYearWords(starts[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`, totals);
         const total = sum(values);
         if (total === 0) return { empty: `0 reviews coming up ${over.within}.` };
         return {
           figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
-          chart: <Columns values={values} labels={labels} words={said} now={0} onAt={onAt} />,
+          chart: <Columns values={values} labels={labels} words={said} note={totals} now={0} onAt={onAt} />,
           foot: `Heaviest: ${said(argmax(values))}`,
         };
       }
       if (!win) return { empty: "" };
       let values: number[];
       let labels: string[];
-      let said: (j: number) => string;
+      let saidOwn: (j: number) => string;
       if (win.window === "today") {
         values = ahead.hours.slice(ahead.nowHour);
         labels = values.map((_, j) => hourLabel(ahead.nowHour + j, dayStart));
-        said = (j) => `${j === 0 ? "Now" : hourSpanWords(hourAt(ahead.nowHour + j, dayStart))} · ${sayReviews(values[j] ?? 0)}`;
+        saidOwn = (j) => `${j === 0 ? "Now" : hourSpanWords(hourAt(ahead.nowHour + j, dayStart))} · ${sayReviews(values[j] ?? 0)}`;
       } else {
         values = ahead.days.slice(0, win.window === "days7" ? 7 : 30);
         const days = values.map((_, j) => addDays(stats.today, j));
         labels = days.map((d) => dayLabel(d, days.length, ctx.settings.weekEndsOn));
-        said = (j) => `${j === 0 ? "Today" : dayWords(days[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
+        saidOwn = (j) => `${j === 0 ? "Today" : dayWords(days[j] ?? stats.today)} · ${sayReviews(values[j] ?? 0)}`;
       }
+      const totals = totalsOf(values);
+      const said = withTotal(saidOwn, totals);
       const total = sum(values);
       if (total === 0) return { empty: win.window === "today" ? "0 reviews due today." : `0 reviews coming up in the next ${values.length} days.` };
       return {
         figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
-        chart: <Columns values={values} labels={labels} words={said} now={0} onAt={onAt} />,
+        chart: <Columns values={values} labels={labels} words={said} note={totals} now={0} onAt={onAt} />,
         foot: win.window === "today" ? `${sayReviews(values[0] ?? 0)} due now · the rest later today` : `Heaviest: ${said(argmax(values))}`,
       };
     },

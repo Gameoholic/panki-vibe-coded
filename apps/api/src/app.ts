@@ -111,7 +111,7 @@ export function createApp({ auth, dbFor, mediaDirFor, shared, dictionaryDir, ext
   app.use("/api/srs", srsRouter(dbOf, now));
   app.use("/api/settings", settingsRouter(dbOf, now));
   app.use("/api/decks", decksRouter(dbOf, now));
-  app.use("/api/cards", cardsRouter(dbOf));
+  app.use("/api/cards", cardsRouter(dbOf, now));
   app.use("/api/media", mediaRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), now));
   app.use("/api/word-audio", wordAudioRouter(shared, wordAudioKeys, now));
   app.use("/api/forvo", forvoRouter(dbOf, (res) => mediaDirFor(signedIn(res).user.id), forvo, shared, wordAudioKeys.forvo, now));

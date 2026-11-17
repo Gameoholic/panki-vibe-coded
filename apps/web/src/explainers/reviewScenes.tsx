@@ -38,9 +38,9 @@ const SENTENCE = "00000000-0000-4000-8000-0000000000b2";
 const MEANING = "00000000-0000-4000-8000-0000000000b3";
 /** The made-up card type: the word and its sentence on the front, both marked Blur, the meaning on the back. */
 const FIELDS: CardField[] = [
-  { id: WORD, name: "Word", kind: "text", side: "front", required: true, tellsApart: false, perExample: false },
-  { id: SENTENCE, name: "Sentence", kind: "long", side: "front", required: false, tellsApart: false, perExample: true },
-  { id: MEANING, name: "Meaning", kind: "text", side: "back", required: true, tellsApart: false, perExample: false },
+  { id: WORD, name: "Word", kind: "text", side: "front", required: true, tellsApart: false, perExample: false, fills: null },
+  { id: SENTENCE, name: "Sentence", kind: "long", side: "front", required: false, tellsApart: false, perExample: true, fills: null },
+  { id: MEANING, name: "Meaning", kind: "text", side: "back", required: true, tellsApart: false, perExample: false, fills: null },
 ];
 const TYPE: CardType = {
   id: "00000000-0000-4000-8000-0000000000b0",

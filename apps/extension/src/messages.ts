@@ -67,7 +67,6 @@ import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, KeptPiece, PIECE_BASE
 import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
-import { FieldMap } from "./roles";
 import { MarkPaint } from "./seekLook";
 
 /**
@@ -113,7 +112,7 @@ export type RecordingAsk = z.infer<typeof RecordingAsk>;
 /** The name a page gives a Panki AI message it may stop: its own, unique while the page is open (`askAiStop`). */
 export const AiStopId = z.string().min(1).max(64);
 
-/** A tab of the options page a page sends the viewer to: the sign-in, a deck's field mapping, the video's settings, or the downloads. */
+/** A tab of the options page a page sends the viewer to: the sign-in, the decks, the video's settings, or the downloads. */
 export const OptionsTab = z.enum(["account", "decks", "videos", "youtube", "downloads"]);
 export type OptionsTab = z.infer<typeof OptionsTab>;
 
@@ -150,8 +149,8 @@ export const Local = z.object({
   look: z.object({ key: LookKey, subtitleKey: LookKey, delay: HoverDelay, subtitleDelay: HoverDelay, where: LookWhere, sites: z.array(z.string()), layout: PopupLayout.nullable() }),
   /** This browser's Video tracking (`watch/tracking.ts`); off until it's settled. */
   tracking: z.boolean(),
-  /** The drawer's own: what fills each deck's fields, which decks are switched on to be added to, the deck it opens on. */
-  drawer: z.object({ maps: z.record(z.string(), FieldMap), mappingOn: z.record(z.string(), z.boolean()), defaultDeckId: DeckId.nullable() }),
+  /** The drawer's own: the deck it opens on. What fills each field is the card type's (`CardField.fills`). */
+  drawer: z.object({ defaultDeckId: DeckId.nullable() }),
 });
 export type Local = z.infer<typeof Local>;
 
@@ -164,7 +163,7 @@ export const DownloadsChanged = z.object({ kind: z.literal("downloadsChanged") }
 export type DownloadsChanged = z.infer<typeof DownloadsChanged>;
 
 export const Ask = z.discriminatedUnion("kind", [
-  /** What the panel needs of Panki to open: the decks, their card types and SRS types (to show the card as a review will). What fills each deck's fields and the deck it opens on are this browser's (`Local`). */
+  /** What the panel needs of Panki to open: the decks, their card types (what fills each field among them) and SRS types (to show the card as a review will). The deck it opens on is this browser's (`Local`). */
   z.object({ kind: z.literal("state") }),
   /** This browser's own settings, all of them (`Local`). Needs no sign-in, and asks nothing of Panki. */
   z.object({ kind: z.literal("local") }),
@@ -186,10 +185,10 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("options"), tab: OptionsTab.optional() }),
   /**
    * Open Panki itself in a tab: the address of the profile in use, at one of its cards when one is given (open in its
-   * deck's list), never an address the page writes. Nobody signed in, it
-   * opens the options page to sign in instead.
+   * deck's list), or at its card types (`types`, where each one's Field mapping is set), never an address the page
+   * writes. Nobody signed in, it opens the options page to sign in instead.
    */
-  z.object({ kind: z.literal("open"), card: z.object({ deckId: DeckId, cardId: CardId }).optional() }),
+  z.object({ kind: z.literal("open"), card: z.object({ deckId: DeckId, cardId: CardId }).optional(), types: z.literal(true).optional() }),
   /** The account's cards already called by the words a card is about to be added with: the drawer says so. */
   z.object({ kind: z.literal("called"), words: CardsCalled.shape.word }),
   /** Whether pointing at a word looks it up on the page asking, and how the popup is laid out against the dictionaries there are. Needs no sign-in: the dictionaries are this browser's own. */
@@ -532,6 +531,10 @@ export async function askOptions(tab: OptionsTab): Promise<void> {
 /** Opens Panki, the one the profile in use is signed in to, in a tab of its own: at one of its cards, when one is given. */
 export async function askOpenPanki(card?: { deckId: string; cardId: string }): Promise<void> {
   await ask(card ? { kind: "open", card } : { kind: "open" });
+}
+/** Opens Panki at its card types, where each one's Field mapping is set. */
+export async function askOpenTypes(): Promise<void> {
+  await ask({ kind: "open", types: true });
 }
 /** The account's cards already called by one of these words; none when it can't be asked (the card can be added all the same). */
 export async function askCalled(words: readonly string[]): Promise<readonly CalledCard[]> {

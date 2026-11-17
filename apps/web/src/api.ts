@@ -1,5 +1,6 @@
 /** @panki Every call to the API, parsed through the contracts (`api`, `ApiError`), and where a file's bytes are. Never a second client. */
 import {
+  AccountCards,
   ApiErrorBody,
   CalledCards,
   CardList,
@@ -12,6 +13,9 @@ import {
   EngineAccountResponse,
   ExtensionBuildResponse,
   PankiAiResponse,
+  TouchUpResponse,
+  type TouchUpAsk,
+  type TouchedUp,
   AiTemplateResponse,
   AiActionResponse,
   AiActionsResponse,
@@ -104,6 +108,8 @@ export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The refusal as Panki sent it, for a call whose refusals say more than a message (a Panki AI place's, `ExplainError`). */
+    readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -131,7 +137,7 @@ async function request<T>(path: string, init: RequestInit | undefined, parse: (b
   if (!res.ok) {
     if (res.status === 401 && !ownsUnauthorized) signedOut?.();
     const known = ApiErrorBody.safeParse(body);
-    throw new ApiError(known.success ? known.data.error.message : "Something went wrong.", res.status);
+    throw new ApiError(known.success ? known.data.error.message : "Something went wrong.", res.status, body);
   }
   return parse(body);
 }
@@ -243,6 +249,12 @@ export const api = {
   engineAccount: (): Promise<EngineAccount> => request(`${TRANSCRIPTION_PATH}/account`, undefined, (b) => EngineAccountResponse.parse(b).account),
   /** Panki AI for everyone: whether it's on, the provider and its model, and whose key the provider has (the key itself to an admin); and the account's own templates. */
   getAi: (): Promise<PankiAiStatus> => request("/api/ai", undefined, (b) => PankiAiResponse.parse(b).ai),
+  /**
+   * One message of a card's conversation (Touch up and every card action), on a card opened in a deck. `signal` is the
+   * person's Stop. A refusal Panki explains carries its `ExplainError` as the error's `body`.
+   */
+  touchUp: (ask: TouchUpAsk, signal?: AbortSignal): Promise<{ touchUp: TouchedUp; ai: PankiAiStatus }> =>
+    request("/api/ai/card", { ...send("POST", ask), ...(signal ? { signal } : {}) }, (b) => TouchUpResponse.parse(b)),
   /** Changes some of Panki AI's settings; an admin's alone. */
   updateAi: (patch: PankiAiUpdate): Promise<PankiAiStatus> => request("/api/ai", send("PATCH", patch), (b) => PankiAiResponse.parse(b).ai),
   /** Keeps a provider's key for everyone, or forgets it (null); an admin's alone. */
@@ -274,6 +286,8 @@ export const api = {
   /** Hides the deck and its cards; nothing is destroyed. */
   removeDeck: (deckId: string): Promise<void> => request(deckPath(deckId), send("DELETE"), () => undefined),
   listCards: (deckId: string): Promise<Card[]> => request(`${deckPath(deckId)}/cards`, undefined, (b) => CardList.parse(b).cards),
+  /** Every living card of the account's, deck by deck: what searching every deck reads. Nothing is pinned by reading them. */
+  everyCard: (): Promise<AccountCards["decks"]> => request("/api/cards", undefined, (b) => AccountCards.parse(b).decks),
   addCard: (deckId: string, card: NewCard): Promise<Card> => request(`${deckPath(deckId)}/cards`, send("POST", card), (b) => CardResponse.parse(b).card),
   /** Changes some of a card's values; a field left out keeps what it has. Each change keeps what the value was. */
   updateCard: (deckId: string, cardId: string, update: CardUpdate): Promise<Card> =>

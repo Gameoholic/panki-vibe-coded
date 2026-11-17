@@ -33,7 +33,9 @@ import { z } from "zod";
 // 13: Touch up's key for the Line is `line`, not `sentence` (`TOUCH_UP_KEYS`), in what a card's message sends and its answer.
 // 14: a field can be Example sentences (`FieldKind` `examples`), which 13 refuses in the card types it reads, and Touch
 // up answers it as rows (`ExamplesWire`), its value their JSON (`examples.ts`).
-export const EXTENSION_PROTOCOL = 14;
+// 15: what fills each field is the card type's (`CardField.fills`, `roles.ts`), set in Panki; 14 fills by its own per
+// deck, and a card type's would go unread.
+export const EXTENSION_PROTOCOL = 15;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

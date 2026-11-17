@@ -10,6 +10,7 @@ Duplication means something was modelled wrong. One concept, one component, one 
 - **What a thing offers is declared in one file,** a catalog; each place picks what makes sense for it.
 - **Every button is `<Button>`,** carrying one of the app's button classes; never a classless `<button>`.
 - **A rule or magic number has one home.** Retuning means editing one object, not hunting through components.
+- **Searching cards is one function,** the contracts' `rankCards` (`textSearch.ts`), with `cardLighting` for what it found, and a card's row drawn by `cardRowCells`: every place that searches cards (a deck's Search, the palette over every deck, any added later) calls them, so a change to what's searched, how a word is found, the ranking or the lighting reaches every search at once. Never a second loop over cards, a second scoring or a second lighting.
 - **Anything the extension keeps of Panki's is one entry in `apps/extension/src/kept.ts`,** read with `readKept` and invalidated by Panki's state header (`X-Panki-State`); never a cache of its own with its own lifetime and clearing. A new kind of kept data is one entry in the contracts' `KEPT_KINDS`, the API hashing it from the data itself (`apps/api/src/kept.ts` → `hashOf`, `whileUnchanged`), never a counter bumped by hand on each write. A page's own memory of what it's drawing stays the page's.
 
 ## Registries

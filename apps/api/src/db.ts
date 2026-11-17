@@ -1227,6 +1227,12 @@ const MIGRATIONS: ReadonlyArray<(db: DatabaseSync, now: number) => void> = [
     db.prepare("UPDATE settings SET value = ? WHERE key = 'rules'").run(next);
     db.prepare("INSERT INTO settings_changes (key, from_value, to_value, at) VALUES ('rules', ?, ?, ?)").run(row.value, next, now);
   },
+  (db) => {
+    // 59. What fills each field by itself, its Field mapping (the contracts' `roles.ts`), is the card type's, kept on the
+    // field: one of the pieces a capture brings, by its id, or null, typed in. Null for every field there is, set by
+    // hand in the card type editor; a type's save logs it with the rest of it.
+    db.exec("ALTER TABLE card_fields ADD COLUMN fills TEXT");
+  },
 ];
 
 /** Brings a database up to date, or up to step `until` alone (a test of one step starts from the step before it). */
@@ -1246,7 +1252,7 @@ export function migrate(db: DatabaseSync, now: number, until = MIGRATIONS.length
   });
 }
 
-type FieldRow = { id: string; name: string; kind: string; side: string; required: number; tellsApart: number; perExample: number };
+type FieldRow = { id: string; name: string; kind: string; side: string; required: number; tellsApart: number; perExample: number; fills: string | null };
 /**
  * `mediaKind` is what the file a value names is; null for a value that names none. `cues` is what's said in it, as kept
  * (JSON), when it was recorded with its words. `source` is where the value came from, as kept (JSON, `ValueSource`;
@@ -1486,7 +1492,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   const selectTypes = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.removed_at IS NULL ORDER BY t.created_at ASC, t.id ASC`);
   const selectType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ? AND t.removed_at IS NULL`);
   const selectAnyType = db.prepare(`SELECT ${typeColumns} FROM card_types t WHERE t.id = ?`);
-  const selectFields = db.prepare("SELECT id, name, kind, side, required, tells_apart AS tellsApart, per_example AS perExample FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
+  const selectFields = db.prepare("SELECT id, name, kind, side, required, tells_apart AS tellsApart, per_example AS perExample, fills FROM card_fields WHERE type_id = ? AND removed_at IS NULL ORDER BY position ASC, id ASC");
   // Whether a field holds a clip on any card or example: what a layout from before columns needs to put its clip where
   // the review drew it (`layoutOf`).
   const selectHoldsClip = db.prepare(`
@@ -1494,9 +1500,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       OR EXISTS (SELECT 1 FROM card_example_values v JOIN media m ON m.id = v.value WHERE v.field_id = ? AND m.kind = 'video') AS yes`);
   const selectFieldIds = db.prepare("SELECT id, removed_at AS removedAt FROM card_fields WHERE type_id = ?");
   const insertType = db.prepare("INSERT OR IGNORE INTO card_types (id, name, created_at) VALUES (?, ?, ?)");
-  const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, tells_apart, per_example, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-  const updateField = db.prepare("UPDATE card_fields SET name = ?, kind = ?, side = ?, required = ?, tells_apart = ?, per_example = ?, position = ?, removed_at = NULL WHERE id = ?");
-  const hideField = db.prepare("UPDATE card_fields SET removed_at = ? WHERE id = ?");
+  const insertField = db.prepare("INSERT INTO card_fields (id, type_id, name, kind, side, required, tells_apart, per_example, fills, position) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+  const updateField = db.prepare("UPDATE card_fields SET name = ?, kind = ?, side = ?, required = ?, tells_apart = ?, per_example = ?, fills = ?, position = ?, removed_at = NULL WHERE id = ?");  const hideField = db.prepare("UPDATE card_fields SET removed_at = ? WHERE id = ?");
   const updateTypeName = db.prepare("UPDATE card_types SET name = ? WHERE id = ?");
   const insertTypeRename = db.prepare("INSERT INTO card_type_renames (type_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
   const updateTypeLayout = db.prepare("UPDATE card_types SET layout = ? WHERE id = ?");
@@ -1609,6 +1614,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   // The cheap reads a route makes before it does anything: a deck's counts walk every card of it, and aren't wanted there.
   const selectDeckExists = db.prepare("SELECT 1 FROM decks WHERE id = ? AND removed_at IS NULL");
   const selectDeckTypeId = db.prepare("SELECT type_id AS typeId FROM decks WHERE id = ? AND removed_at IS NULL");
+  const selectLiveDeckSrs = db.prepare("SELECT id, srs_type_id AS srsTypeId FROM decks WHERE removed_at IS NULL ORDER BY created_at ASC, id ASC");
   const insertDeck = db.prepare("INSERT OR IGNORE INTO decks (id, name, type_id, srs_type_id, created_at) VALUES (?, ?, ?, ?, ?)");
   const updateDeckName = db.prepare("UPDATE decks SET name = ? WHERE id = ?");
   const insertRename = db.prepare("INSERT INTO deck_renames (deck_id, from_name, to_name, at) VALUES (?, ?, ?, ?)");
@@ -1918,7 +1924,10 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
   }
   function typeFrom(row: unknown): CardType {
     const { layout: kept, stageTag, mainField: keptMain, ...base } = row as { id: string; layout: string; stageTag: string | null; mainField: string | null };
-    const stored = CardField.array().parse((selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1 })));
+    // A piece kept that's no longer one reads as none (`CardField.fills`).
+    const stored = CardField.array().parse(
+      (selectFields.all(base.id) as FieldRow[]).map((f) => ({ id: f.id, name: f.name, kind: f.kind, side: f.side, required: f.required === 1, tellsApart: f.tellsApart === 1, perExample: f.perExample === 1, fills: f.fills })),
+    );
     // The layout as it stands, filled out from the fields; a field's side is then the layout's to say.
     const layout = layoutOf(stored, keptLayout(kept), (fieldId) => (selectHoldsClip.get(fieldId, fieldId) as { yes: number }).yes === 1);
     const sides = new Map(layout.map((part) => [part.fieldId, sideOf(part)]));
@@ -2390,7 +2399,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         if (inserted) {
           const layout = type.layout ? layoutOf(type.fields, type.layout) : null;
           const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
-          type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i));
+          type.fields.forEach((f, i) => insertField.run(f.id, type.id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, f.fills, i));
           if (layout) updateTypeLayout.run(JSON.stringify(layout), type.id);
           if (type.tag || type.spark || type.flag || type.examples) {
             const tag = type.tag ?? DEFAULT_STAGE_TAG;
@@ -2417,8 +2426,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         const layout = update.layout ? layoutOf(update.fields, update.layout) : null;
         const sides = new Map(layout?.map((part) => [part.fieldId, sideOf(part)]));
         syncList(selectFieldIds.all(id) as IdRow[], update.fields, {
-          update: (f, i) => updateField.run(f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i, f.id),
-          insert: (f, i) => insertField.run(f.id, id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, i),
+          update: (f, i) => updateField.run(f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, f.fills, i, f.id),
+          insert: (f, i) => insertField.run(f.id, id, f.name, f.kind, sides.get(f.id) ?? f.side, f.required ? 1 : 0, f.tellsApart ? 1 : 0, f.perExample ? 1 : 0, f.fills, i),
           hide: (fieldId) => hideField.run(now, fieldId),
         });
         if (layout) {
@@ -2818,6 +2827,22 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
           return { ...card, shownExample: exampleId, wordAtMs: clipsOf(card.id, exampleId).front.word };
         }),
       );
+    },
+    /**
+     * Every living card of the account's, deck by deck, the decks in the order they were made: what searching every deck
+     * reads. Only read: unlike a deck's own list (`listCards`), no example is pinned, so searching never decides which
+     * example a review shows.
+     */
+    everyCard(now: number): { deckId: string; cards: Card[] }[] {
+      const today = todayAt(now);
+      return (selectLiveDeckSrs.all() as { id: string; srsTypeId: string }[]).map((deck) => {
+        const read: CardReads = {
+          values: selectDeckValues.all(deck.id) as ValueRow[],
+          examples: selectDeckExamples.all(deck.id) as ExampleRow[],
+          exampleValues: selectDeckExampleValues.all(deck.id) as ExampleValueRow[],
+        };
+        return { deckId: deck.id, cards: cardsFrom(selectCards.all(deck.id) as CardRow[], read, srsTypeOf(deck.srsTypeId), today) };
+      });
     },
     /** The card, when it is in that deck. */
     getCard(deckId: string, cardId: string, now: number): Card | null {

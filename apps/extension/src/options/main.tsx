@@ -25,7 +25,7 @@ import { hostPattern, originOf } from "../address";
 import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
-import { ROLES, ROLE_IDS, SOURCE_WORDS, cleanMap, mappingOn, roleOf, withRole, type FieldMap, type RoleId } from "../roles";
+import { askOpenTypes } from "../messages";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, shortSkipOf, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
@@ -44,7 +44,7 @@ import { UpdateBanner, VersionPanel, useUpdate } from "./Updates";
 
 /**
  * The extension's own page, in tabs: the dictionary (how looking a word up works, the dictionaries, how the popup is
- * laid out), the decks (the one the drawer opens on, what fills each field of a deck's cards), YouTube (how a clip is
+ * laid out), the decks (the one the drawer opens on; what fills each field is the card type's, in Panki), YouTube (how a clip is
  * cut), and the account (where Panki is and the sign-in to it). Built of the app's own pieces and styles, so it reads
  * as a screen of Panki.
  */
@@ -61,8 +61,6 @@ const said = (e: unknown) => (e instanceof PankiError ? e.message : WRONG);
 /** The choice that is no choice: no deck, nothing to fill a field with. */
 const NONE = "";
 const NONE_WORD = "None";
-/** Where a field filled with nothing gets its value, said beside None as each piece says its source. */
-const TYPED_WORD = "Typed by you";
 
 /** The sign-in form. Signing in makes that account the one in use; one in use already is kept as a profile. `onCancel` is there when it was opened beside the profiles. */
 function SignIn({ known, onDone, onCancel }: { known: string; onDone: () => void; onCancel?: () => void }) {
@@ -767,70 +765,20 @@ const TABS: readonly { id: Tab; label: string }[] = [
 ];
 const tabOfAddress = (): Tab | null => TABS.find((t) => `#${t.id}` === location.hash)?.id ?? null;
 
-/** One deck's fields, each with what the extension fills it with. Kept as it's chosen; only shown, not chosen, while the deck's mapping is switched off. */
-function FieldsOf({ type, saved, off, onSave }: { type: CardType; saved: FieldMap | undefined; off: boolean; onSave: (map: FieldMap) => void }) {
-  const map = cleanMap(saved ?? {}, type);
-  return (
-    <>
-      {type.fields.map((field) => (
-        <Setting
-          key={field.id}
-          id={`field-${field.id}`}
-          label={field.name}
-          control={
-            // Every field is offered everything there is, so the whole list is always in sight; what can't go in a
-            // field of this kind is there but can't be chosen.
-            <Dropdown<RoleId | typeof NONE>
-              id={`field-${field.id}-source`}
-              label={field.name}
-              options={[
-                { id: NONE, label: NONE_WORD, note: TYPED_WORD },
-                ...ROLE_IDS.map((role) => ({ id: role, label: ROLES[role].name, note: SOURCE_WORDS[ROLES[role].from], disabled: !ROLES[role].takes(field) })),
-              ]}
-              value={roleOf(map, field.id) ?? NONE}
-              // The word at each choice's right is where it comes from, so it never has to be remembered.
-              columns={{ choice: "Fill with", note: "Source" }}
-              disabled={off}
-              onChange={(role) => onSave(withRole(map, field.id, role === NONE ? null : role))}
-            />
-          }
-        />
-      ))}
-    </>
-  );
-}
-
-function Mapping({ decks, types, store, onSaved }: { decks: Deck[]; types: CardType[]; store: Stored; onSaved: () => void }) {
-  const [deckId, setDeckId] = useState<string | null>(null);
-  // It opens on the deck cards go to, which is the one most likely being set up.
-  const deck = decks.find((d) => d.id === deckId) ?? decks.find((d) => d.id === store.defaultDeckId) ?? decks[0] ?? null;
-  const type = deck ? (types.find((t) => t.id === deck.typeId) ?? null) : null;
-  const on = deck ? mappingOn(store.mappingOn, store.maps, deck.id) : false;
+/** What fills each field is its card type's, the same in every browser, set in Panki's card type editor: this says so, and opens it there. */
+function Mapping() {
   return (
     <section className="panel" aria-labelledby="mapping-title">
       <h2 id="mapping-title" className="panel-title">
         Field mapping
       </h2>
-      {deck && type ? (
-        <>
-          <p className="empty">Choose what fills each field. A field on {NONE_WORD} will be entered manually.</p>
-          <Setting id="mapping-deck" label="Deck" control={<Dropdown id="mapping-deck-choice" label="Deck" options={decks.map((d) => ({ id: d.id, label: d.name }))} value={deck.id} onChange={setDeckId} />} />
-          {/* Off for every deck until it's switched on: the extension adds nothing to a deck nobody set up for it. */}
-          <Setting
-            id="mapping-on"
-            label="Field mapping"
-            control={<Toggle id="mapping-on-switch" says={{ on: "Enabled", off: "Disabled" }} on={on} onChange={(next) => void writeStore({ mappingOn: { ...store.mappingOn, [deck.id]: next } }).then(onSaved)} />}
-          />
-          {/* A field's name and a piece's can be the same word (Reading, Meaning): this says which side is which. */}
-          <div className="map-head">
-            <span>Field in {deck.name}</span>
-            <span>Filled with</span>
-          </div>
-          <FieldsOf key={deck.id} type={type} saved={store.maps[deck.id]} off={!on} onSave={(map) => void writeStore({ maps: { ...store.maps, [deck.id]: map } }).then(onSaved)} />
-        </>
-      ) : (
-        <p className="empty">No decks yet.</p>
-      )}
+      <p className="empty">What fills each field is set on each card type in Panki.</p>
+      <div className="add-actions add-actions-start">
+        <Button onClick={() => void askOpenTypes()}>
+          <Icon name="out" />
+          Card types
+        </Button>
+      </div>
     </section>
   );
 }
@@ -899,7 +847,7 @@ function Options() {
   const account = useAccountSettings(door);
   /** An update for the extension, as the worker last found it. */
   const updates = useUpdate();
-  // Sent here by the drawer to sign in or to switch a deck's field mapping on: turned to that tab, once.
+  // Sent here by a page to sign in, or to a tab of its settings: turned to that tab, once.
   const asked = store?.optionsTab ?? null;
   useEffect(() => {
     if (!asked) return;
@@ -945,7 +893,7 @@ function Options() {
                   {/* The words in the decks marked wherever they're met: every site, and Panki's subtitles over the video and in the panel. */}
                   <KnownWords store={store} onChanged={refresh} />
                   <DefaultDeck decks={lists.decks} store={store} onChanged={refresh} />
-                  <Mapping decks={lists.decks} types={lists.types} store={store} onSaved={refresh} />
+                  <Mapping />
                 </>
               ) : null
             ) : (

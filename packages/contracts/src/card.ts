@@ -286,6 +286,9 @@ export type CardUpdate = z.infer<typeof CardUpdate>;
 export type Card = z.infer<typeof Card>;
 
 export const CardList = z.object({ cards: z.array(Card) });
+/** Every living card of the account's, deck by deck, as searching every deck reads them (`GET /api/cards`). */
+export const AccountCards = z.object({ decks: z.array(z.object({ deckId: DeckId, cards: z.array(Card) })) });
+export type AccountCards = z.infer<typeof AccountCards>;
 export const CardResponse = z.object({ card: Card });
 
 /**

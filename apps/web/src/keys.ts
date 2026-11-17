@@ -70,6 +70,8 @@ export type KeyBinds = {
   start: Bind;
   /** The home's Review door (Space held 0.5 s to begin with). */
   homeReview: Bind;
+  /** Open search: the palette that searches every deck, heard on every screen (Ctrl+K, and / added to it, to begin with). */
+  search: Bind;
   /** How much longer an answer that requires confirmation is held, on top of its own key's hold. */
   confirmMs: number;
 };
@@ -88,6 +90,7 @@ export const pressKind = (key: Key): "press" | "double" | "hold" => (key.holdMs 
  * for confirmation a second more (1.5 s in all), a sound or a clip at a press. Full screen is F,
  * at a press. Only the first sound or clip is played again from its start by default, with 1 held half a second. A
  * card's examples are ← and →, at a press. Blur is Shift, at a press. Subtitles is C, at a press, as on YouTube.
+ * Open search is Ctrl+K with / added to it, at a press, as most sites search.
  */
 const ANSWER_START = ["1", "2", "3", "4", "5", "6"];
 const MEDIA_START = ["a", "s"];
@@ -110,6 +113,7 @@ export const DEFAULT_KEYS: KeyBinds = {
   exampleNext: one("ArrowRight", 0),
   start: one(" ", 250),
   homeReview: one(" ", 500),
+  search: { ...one("Ctrl+k", 0), also: [{ key: "/", holdMs: 0 }] },
   confirmMs: 1000,
 };
 
@@ -150,6 +154,17 @@ export function keyOf(e: KeyboardEvent): string {
   if (modifier) return modifier;
   const held = [e.ctrlKey ? "Ctrl" : null, e.altKey ? "Alt" : null].filter((name) => name !== null);
   return [...held, e.key.length === 1 ? e.key.toLowerCase() : e.key].join("+");
+}
+
+/** Whether this device is a Mac (or an iPad with a keyboard), where ⌘ is pressed where Ctrl is elsewhere. */
+const ON_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+/**
+ * A press of ⌘ with a key on a Mac, as a bind keeps the same key with Ctrl ("Ctrl+k"); null for any other press or
+ * device. Only Open search reads it (Ctrl+K is ⌘K there); every other key is heard by `pressed`, which leaves ⌘ alone.
+ */
+export function commandAsCtrl(e: KeyboardEvent): string | null {
+  if (!ON_MAC || !e.metaKey || e.ctrlKey || e.repeat || MODIFIERS[e.key]) return null;
+  return [e.altKey ? "Ctrl+Alt" : "Ctrl", e.key.length === 1 ? e.key.toLowerCase() : e.key].join("+");
 }
 
 /** Whether a press is a bind's key: the same key with the same held with it. The Windows or Command key held, it's none. */
@@ -309,7 +324,16 @@ function read(): KeyBinds {
       "subtitles" in raw ? bindOf(raw.subtitles, DEFAULT_KEYS.subtitles, undefined) : takenBy([...rest, examplePrev, exampleNext], DEFAULT_KEYS.subtitles) ? one(null, 0) : DEFAULT_KEYS.subtitles;
     const start = "start" in raw ? bindOf(raw.start, DEFAULT_KEYS.start, undefined) : DEFAULT_KEYS.start;
     const homeReview = "homeReview" in raw ? bindOf(raw.homeReview, DEFAULT_KEYS.homeReview, undefined) : DEFAULT_KEYS.homeReview;
-    return { reveal, blur, hide, answers, media, restart, fullScreen, subtitles, undo, flag, examplePrev, exampleNext, start, homeReview, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
+    // Kept before there was an Open search key: each of its keys is given only where no key on any screen already is it,
+    // as it's heard on every screen; one taken leaves Open search without it.
+    const search = (() => {
+      if ("search" in raw) return bindOf(raw.search, DEFAULT_KEYS.search, undefined);
+      const every = [...rest, examplePrev, exampleNext, subtitles, start, homeReview];
+      const free = (key: Key) => !takenBy(every, key);
+      const [main, ...more] = keysOf(DEFAULT_KEYS.search).filter(free);
+      return main ? { ...main, also: more } : one(null, 0);
+    })();
+    return { reveal, blur, hide, answers, media, restart, fullScreen, subtitles, undo, flag, examplePrev, exampleNext, start, homeReview, search, confirmMs: holdOf(confirmMs) ?? DEFAULT_KEYS.confirmMs };
   } catch {
     return DEFAULT_KEYS;
   }
@@ -366,12 +390,12 @@ export function setKeyBinds(next: KeyBinds) {
     // Storage refused (a private window): they hold while the page is open and are the defaults next time.
   }
   for (const listener of listeners) listener();
-  ledger.record("keys", { data: { reveal: next.reveal, blur: next.blur, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, subtitles: next.subtitles, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, confirmMs: next.confirmMs } });
+  ledger.record("keys", { data: { reveal: next.reveal, blur: next.blur, hide: next.hide, answers: next.answers, media: next.media, restart: next.restart, fullScreen: next.fullScreen, subtitles: next.subtitles, undo: next.undo, flag: next.flag, examplePrev: next.examplePrev, exampleNext: next.exampleNext, start: next.start, homeReview: next.homeReview, search: next.search, confirmMs: next.confirmMs } });
 }
 
-/** Where a key is bound: showing the back, blurring the front or unblurring it, stepping back, full screen's, subtitles', Undo's, Flag's, an example's either way, Start's, the home's Review door's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
-export type Slot = { kind: "reveal" | "blur" | "hide" | "fullScreen" | "subtitles" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" } | { kind: "answers" | "media" | "restart"; index: number };
-const NAMED = ["reveal", "blur", "hide", "fullScreen", "subtitles", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview"] as const;
+/** Where a key is bound: showing the back, blurring the front or unblurring it, stepping back, full screen's, subtitles', Undo's, Flag's, an example's either way, Start's, the home's Review door's, Open search's, an answer's place, or a sound's or clip's place (playing it, or playing it again from its start). */
+export type Slot = { kind: "reveal" | "blur" | "hide" | "fullScreen" | "subtitles" | "undo" | "flag" | "examplePrev" | "exampleNext" | "start" | "homeReview" | "search" } | { kind: "answers" | "media" | "restart"; index: number };
+const NAMED = ["reveal", "blur", "hide", "fullScreen", "subtitles", "undo", "flag", "examplePrev", "exampleNext", "start", "homeReview", "search"] as const;
 /**
  * Show back of card and Step back never take each other's key: a key that's both is heard by precedence, Show back of
  * card's on the front, Step back's on the back.
@@ -379,8 +403,12 @@ const NAMED = ["reveal", "blur", "hide", "fullScreen", "subtitles", "undo", "fla
 const FACE_KEYS: readonly Slot["kind"][] = ["reveal", "hide"];
 const apart = (a: Slot, b: Slot) => a.kind !== b.kind && FACE_KEYS.includes(a.kind) && FACE_KEYS.includes(b.kind);
 
-/** The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space starts the review, then shows the answer). */
-const screenOf = (kind: Slot["kind"]): "home" | "today" | "review" => (kind === "homeReview" ? "home" : kind === "start" ? "today" : "review");
+/**
+ * The screen a slot's key is heard on: a key is only ever one thing on one screen, and can be another elsewhere (Space
+ * starts the review, then shows the answer). Open search is heard on every screen, so it shares one with every key.
+ */
+const screenOf = (kind: Slot["kind"]): "home" | "today" | "review" | "every" => (kind === "search" ? "every" : kind === "homeReview" ? "home" : kind === "start" ? "today" : "review");
+const sameScreen = (a: Slot["kind"], b: Slot["kind"]) => screenOf(a) === "every" || screenOf(b) === "every" || screenOf(a) === screenOf(b);
 
 function slotsOf(binds: KeyBinds): Slot[] {
   return [...NAMED.map((kind) => ({ kind })), ...binds.answers.map((_, index) => ({ kind: "answers" as const, index })), ...binds.media.map((_, index) => ({ kind: "media" as const, index })), ...binds.restart.map((_, index) => ({ kind: "restart" as const, index }))];
@@ -415,10 +443,9 @@ const clash = (a: Key, b: Key) => sameKey(a.key, b.key) && pressKind(a) === pres
  */
 export function withPart(binds: KeyBinds, slot: Slot, part: Part, change: (key: Key) => Key): KeyBinds {
   const mine = change(partOf(bindAt(binds, slot), part));
-  const screen = screenOf(slot.kind);
   let next = binds;
   for (const other of slotsOf(binds)) {
-    if (screenOf(other.kind) !== screen || apart(other, slot)) continue;
+    if (!sameScreen(other.kind, slot.kind) || apart(other, slot)) continue;
     const bind = bindAt(next, other);
     let changed = bind;
     for (const p of partsOf(bind)) {

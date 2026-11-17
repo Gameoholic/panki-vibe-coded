@@ -23,7 +23,7 @@ import { Button } from "@web/components/Button";
 import { Icon } from "@web/components/Icon";
 import { ScrollEdges } from "@web/components/ScrollEdges";
 import { Toggle } from "@web/components/Toggle";
-import { NO_UPDATE, RecordingAsk, Trigger, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
+import { NO_UPDATE, RecordingAsk, Trigger, askState, askForget, askGlance, askLine, askLineMark, askFullPanel, askBarKept, askPankiOn, askPanelView, askPanelWidth, askPrefs, askRecap, askRedoStretch, askSave, askSubtitles, askUpdate, askVideoCards, askWatch, askWatchMark, askWatched, type UpdateState } from "../messages";
 import { UpdateMenu } from "../ui/UpdateNotice";
 import { amendLocal, loadLocal, localNow, onLocal, useLocal } from "../local";
 import type { TranscribePrefs } from "../transcribe/prefs";
@@ -33,7 +33,7 @@ import { createWatcher, SAVING_IDLE, type Saving } from "../watch/watcher";
 import { SavingMark } from "../ui/SavingMark";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
-import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, subtitleVars, withinBound, type SubtitleStyle, type VideoCard } from "@panki/contracts";
+import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, mapOf, subtitleVars, withinBound, type CardType, type Cut, type Deck, type SubtitleStyle, type VideoCard } from "@panki/contracts";
 import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
 import { createPlayback } from "../download/playback";
 import { createDownloads, stillOf } from "../download/runner";
@@ -41,7 +41,6 @@ import { DownloadedControl } from "../ui/DownloadedMark";
 import { SaveControl } from "../ui/SaveControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
-import type { Cut } from "../roles";
 import { paintCss } from "../seekLook";
 import { comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
 import { createLineSource, lineSkipTo } from "../transcribe/lineSource";
@@ -2203,8 +2202,8 @@ function BarMarks(props: Omit<ComponentProps<typeof SeekMark>, "hover" | "onReac
 
 /**
  * The Video recap while one stands for the video on the page (`ui/Recap.tsx`): each card's reading and meaning from the
- * fields this browser's mapping for its deck fills with the dictionary's (nothing when it maps none), the words in the
- * decks heard from Panki's subtitles in the parts watched, with the confetti as this browser has it.
+ * fields its card type fills with the dictionary's (nothing when it maps none, or until the card types are in), the
+ * words in the decks heard from Panki's subtitles in the parts watched, with the confetti as this browser has it.
  */
 function RecapHere() {
   const now = useSyncExternalStore(recapped.subscribe, recapped.get);
@@ -2214,9 +2213,24 @@ function RecapHere() {
   const spoken = useMemo(() => (recap && tx.transcript ? linesOf(tx.transcript.words) : null), [recap, tx.transcript]);
   const heard = useHeardInDecks(spoken, recap?.watched ?? NO_SPANS);
   const done = useSyncExternalStore(downloads.subscribe, () => downloads.get().done);
+  /** The account's decks and card types, asked once a recap stands: what fills each card's fields is its card type's. */
+  const [typed, setTyped] = useState<{ decks: readonly Deck[]; types: readonly CardType[] } | null>(null);
+  const standing = recap !== null;
+  useEffect(() => {
+    if (!standing || typed !== null) return;
+    let alive = true;
+    void askState().then((answer) => {
+      if (alive && answer.ok) setTyped({ decks: answer.decks, types: answer.types });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [standing, typed]);
   if (!recap) return null;
   const faces = recap.cards.map((card): RecapFace => {
-    const map = local.drawer.maps[card.deckId] ?? {};
+    const deck = typed?.decks.find((d) => d.id === card.deckId);
+    const type = deck ? typed?.types.find((t) => t.id === deck.typeId) : undefined;
+    const map = type ? mapOf(type) : {};
     const valueOf = (fieldId: string | undefined) => (fieldId ? (card.values[fieldId] ?? "").trim() : "");
     return { card, reading: valueOf(map.dictReading), meaning: valueOf(map.dictMeaning).split("\n")[0]?.trim() ?? "" };
   });

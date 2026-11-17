@@ -3754,20 +3754,6 @@
 .brand-switch {
   margin-left: auto;
 }
-/* Over the field mapping's rows: the deck's field on the left, what fills it on the right, as each row has them. */
-.map-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--muted);
-}
-.map-head > span {
-  overflow-wrap: anywhere;
-}
 /* The dictionaries, one row each: its name and what's in it, its switch, a grip to move it, Remove. */
 .dict-list {
   display: grid;

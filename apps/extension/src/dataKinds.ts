@@ -7,7 +7,7 @@ import type { NamedPart } from "./popupKinds";
  * What Panki reads from a dictionary, one registry: each kind of data a dictionary can provide, what it's called
  * everywhere it's shown (a dictionary's row, the popup's layout, the field mapping), what it is in a sentence, and the
  * parts of the popup it's shown in. Which of a card's fields it can fill is the field mapping's: each piece the
- * dictionary gives names its kind (`roles.ts`). So a dictionary says what data it provides, in the kinds Panki
+ * dictionary gives names its kind (the contracts' `roles.ts`). So a dictionary says what data it provides, in the kinds Panki
  * accepts, each explained where it's named, rather than one list of the fields it fills and another of where it shows
  * in the popup. The kinds' ids and their counting are the contracts' (`dictionaryRows.ts`:
  * `DATA_KIND_IDS`, `Provides`), so Panki's server counts a dictionary it keeps the same way; and so are their names

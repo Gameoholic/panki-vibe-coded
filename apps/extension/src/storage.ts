@@ -6,14 +6,12 @@ import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
-import { FieldMap } from "./roles";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
 import { sourceOf, sourceShownOf } from "./subtitles";
 import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
 /**
- * What the extension keeps on this browser, in its own storage: where Panki is, the sign-in, what fills each deck's
- * fields, the deck the drawer opens on, how the drawer and looking a word up are set to behave, and how the popup is
+ * What the extension keeps on this browser, in its own storage: where Panki is, the sign-in, the deck the drawer opens on, how the drawer and looking a word up are set to behave, and how the popup is
  * laid out. (The dictionaries
  * themselves are in the browser's database: `dictionary/store.ts`.) Only the background and the options page
  * read it; a page's script never does, so the sign-in's secret never sits in someone else's page: it gets what it
@@ -50,14 +48,8 @@ const Stored = z.object({
    * things, say). Each is a session of its own on its Panki; the one in use is never among them.
    */
   profiles: z.array(Profile).catch([]),
-  /** Deck id → which field takes which piece. */
-  maps: z.record(z.string(), FieldMap).catch({}),
-  /**
-   * Deck id → whether its field mapping is switched on: whether the extension adds cards to it at all. A deck that
-   * isn't here has never been switched; what that means is `roles.ts` → `mappingOn`'s to say (off, but for a deck
-   * that was mapped before there was a switch).
-   */
-  mappingOn: z.record(z.string(), z.boolean()).catch({}),
+  // A browser that kept `maps` (deck id → its own Field mapping, from before the mapping was the card type's) or
+  // `mappingOn` (deck id → whether that mapping was switched on) keeps them unread: each card type's is set in Panki.
   /**
    * The deck the drawer opens on. None until one is chosen on purpose, in the drawer or on the options page, never
    * guessed; from then on it's that one until another is chosen.
@@ -103,7 +95,7 @@ const Stored = z.object({
   /** How the popup is laid out, as the options page's editor saved it; none until it's saved once (`popupLayoutOf` fills it out). */
   popupLayout: PopupLayout.nullable().catch(null),
   // A browser that kept `explainOnOpen` (Explain as the pop-up opens) reads nothing of it.
-  /** The tab the options page is to open on, when the drawer sent the viewer there to sign in or to switch a deck's field mapping on; the page takes it and clears it. */
+  /** The tab the options page is to open on, when a page sent the viewer there to sign in or to one of its settings; the page takes it and clears it. */
   optionsTab: OptionsTab.nullable().catch(null),
   /**
    * Where the words under a video come from (`subtitles.ts` → `sourceOf` reads it): picked in the line under the
@@ -332,7 +324,7 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   }),
   // Unsettled is off: it's settled as the worker starts (`watch/tracking.ts`), and every page told then.
   tracking: (store) => store.videoTracking === true,
-  drawer: (store) => ({ maps: store.maps, mappingOn: store.mappingOn, defaultDeckId: store.defaultDeckId }),
+  drawer: (store) => ({ defaultDeckId: store.defaultDeckId }),
 };
 
 export const localOf = (store: Stored): Local => ({
@@ -377,14 +369,13 @@ export async function writeStore(patch: Partial<Stored>): Promise<void> {
   await chrome.storage.local.set(patch);
 }
 
-/** The sign-in in use forgotten, here only: what fills the decks' fields stays for the next one, and the kept profiles stay to switch to. */
+/** The sign-in in use forgotten, here only: the kept profiles stay to switch to. */
 export async function forgetSignIn(): Promise<void> {
   await chrome.storage.local.set({ token: null, userName: null } satisfies Partial<Stored>);
 }
 
 /** The same account at the same Panki: one profile, whatever its session. */
 export const sameProfile = (a: Profile, b: Profile): boolean => a.address === b.address && a.userName === b.userName;
-
 /** The sign-in in use as a profile, or null while no one is signed in. */
 export const activeProfile = (store: Stored): Profile | null => (store.address && store.token && store.userName ? { address: store.address, token: store.token, userName: store.userName, name: store.profileName } : null);
 

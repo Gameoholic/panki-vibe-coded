@@ -35,7 +35,7 @@ const BREAK_FROM = 0.5;
 
 const still = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** A card as the recap shows it: its words, and its reading and meaning as this browser's field mapping for its deck says where they are (empty when it doesn't). */
+/** A card as the recap shows it: its words, and its reading and meaning as its card type's Field mapping says where they are (empty when it doesn't). */
 export type RecapFace = { card: RecapCard; reading: string; meaning: string };
 
 type Props = {

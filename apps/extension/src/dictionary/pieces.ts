@@ -1,7 +1,6 @@
 /** @panki The text of a word's dictionary data, as a field or a prompt takes it (`dictionaryPieces`, `NO_PIECES`). Never a second formatting of the same data. */
-import { pitchValue } from "@panki/contracts";
+import { pitchValue, type DictionaryRoleId } from "@panki/contracts";
 import { bandOf } from "../popupKinds";
-import type { DictionaryRoleId } from "../roles";
 import { glossaryText } from "../ui/Glossary";
 import type { Found, Sense, Tag } from "./found";
 

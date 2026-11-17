@@ -197,6 +197,7 @@ export function CardsView({
         twins={twins}
         onTwins={(card) => setOnly(wordsOf(card))}
         filter={filter}
+        searched={query}
         // Pressed again, it closes the card, as Preview does.
         onEdit={(card) => (open?.id === card.id ? onClose(card.id) : onOpen(card.id))}
         onRemove={(card) => onRemove(card.id)}
@@ -221,6 +222,8 @@ export function CardsView({
                     key={open.id}
                     type={type}
                     card={open}
+                    // Its conversation with Panki AI, Touch up among it, as the Card drawer has it.
+                    touchUp
                     {...(subtitleStyle ? { subtitleStyle } : {})}
                     autoFocus
                     onCancel={() => onClose(open.id)}

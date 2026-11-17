@@ -493,7 +493,11 @@ async function answer(
     // Panki, at the address of the profile in use; the
     // page never holds the address itself. A card is opened by its ids alone, at the address the app reads them from.
     const { address, token } = await readStore();
-    const at = ask.card ? routePath({ kind: "deck", id: encodeURIComponent(ask.card.deckId), tab: "cards", card: encodeURIComponent(ask.card.cardId) }) : "/";
+    const at = ask.card
+      ? routePath({ kind: "deck", id: encodeURIComponent(ask.card.deckId), tab: "cards", card: encodeURIComponent(ask.card.cardId) })
+      : ask.types
+        ? routePath({ kind: "types" })
+        : "/";
     if (address && token) await chrome.tabs.create({ url: `${address}${at}` });
     else {
       await writeStore({ optionsTab: "account" });

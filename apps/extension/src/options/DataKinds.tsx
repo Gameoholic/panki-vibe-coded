@@ -1,11 +1,10 @@
 import { useRef, useState, type ReactNode } from "react";
-import type { DataKind } from "@panki/contracts";
+import { DICTIONARY_ROLE, ROLES, type DataKind } from "@panki/contracts";
 import { Button } from "@web/components/Button";
 import { Tip } from "@web/components/Tip";
 import { count, listWords } from "@web/words";
 import { DATA_KINDS } from "../dataKinds";
 import { PART_NAMES } from "../popupKinds";
-import { DICTIONARY_ROLE, ROLES } from "../roles";
 
 /** One kind of data on a line of them, with what's known of it where it's shown. */
 export type KindItem = {

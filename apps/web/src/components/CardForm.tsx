@@ -16,6 +16,7 @@ import {
   holdsFile,
   holdsWords,
   lineLocked,
+  mapOf,
   mediaFor,
   mediaKindsOf,
   wordsFieldOf,
@@ -44,6 +45,7 @@ import { Icon } from "./Icon";
 import { MediaField } from "./MediaField";
 import { TextField } from "./TextField";
 import { UnmarkAi, fieldMarks } from "./TouchUp";
+import { useCardConversation } from "./CardConversation";
 
 const MB = 1024 * 1024;
 
@@ -91,6 +93,8 @@ type Shared = {
  */
 type Adding = Shared & {
   card?: undefined;
+  /** Words the form starts with, by field id (what was searched for and not found, in the field a card is called by); empty after a card is added. */
+  start?: Readonly<Record<string, string>> | undefined;
   onAdd: (card: NewCard) => Promise<void>;
   onOpenCalled?: (card: CalledCard) => void;
   onAddExample?: (to: CalledCard, example: NewCardExample) => Promise<void>;
@@ -102,6 +106,8 @@ type Adding = Shared & {
  */
 type Editing = Shared & {
   card: Card;
+  /** The card's conversation with Panki AI over it (`useCardConversation`): a card opened in its deck has one, an example being changed doesn't. */
+  touchUp?: boolean;
   onSave: (update: CardUpdate) => Promise<void>;
   onRemove: () => Promise<void>;
   onSaveExample?: (exampleId: string, update: CardExampleUpdate) => Promise<void>;
@@ -238,13 +244,19 @@ const aiSourceOn = (card: Card | undefined, fieldId: string): AiValueSource | nu
   return source?.by === "ai" ? source : null;
 };
 
+/** A value Panki AI wrote into the form, accepted from the card's conversation: its words and its source, until Save keeps them. */
+type AiWrote = { value: string; source: AiValueSource };
+
 /**
  * Where a value Panki AI wrote stands as the form holds it: still the AI's (`edited` once it holds other words than the
- * card does, or did already, `aiSourceNow`), or null once it's empty or marked as the owner's (`mine`).
+ * card does, or did already, or than it wrote here since, `aiSourceNow`), or null once it's empty or marked as the
+ * owner's (`mine`).
  */
-function aiSourceFor(card: Card | undefined, fieldId: string, value: string, mine: boolean): AiValueSource | null {
+function aiSourceFor(card: Card | undefined, fieldId: string, value: string, mine: boolean, wrote?: AiWrote): AiValueSource | null {
+  if (mine || value.trim() === "") return null;
+  if (wrote) return aiSourceNow(wrote.source, wrote.value, value);
   const source = aiSourceOn(card, fieldId);
-  if (!card || !source || mine || value.trim() === "") return null;
+  if (!card || !source) return null;
   return aiSourceNow(source, card.values[fieldId] ?? "", value);
 }
 
@@ -254,7 +266,7 @@ function aiSourceFor(card: Card | undefined, fieldId: string, value: string, min
  * value of the AI's whose source changes with its words left alone (marked as the owner's, or `edited` for the first
  * time) is sent too.
  */
-function changedFrom(type: CardType, card: Card, values: Record<string, string>, mine: Readonly<Record<string, true>>): CardUpdate {
+function changedFrom(type: CardType, card: Card, values: Record<string, string>, mine: Readonly<Record<string, true>>, wrote: Readonly<Record<string, AiWrote>>): CardUpdate {
   const changed: Record<string, string> = {};
   const sources: ValueSources = {};
   for (const field of type.fields) {
@@ -263,7 +275,7 @@ function changedFrom(type: CardType, card: Card, values: Record<string, string>,
     // Words still in a field from before it held files aren't a file to take off: left alone, they stay.
     const was = holdsFile(field.kind) && fileKindOf(field.kind, before, card.files) === null ? "" : before;
     const kept = aiSourceOn(card, field.id);
-    const ai = holdsFile(field.kind) ? null : aiSourceFor(card, field.id, now, mine[field.id] === true);
+    const ai = holdsFile(field.kind) ? null : aiSourceFor(card, field.id, now, mine[field.id] === true, wrote[field.id]);
     const sourceMoved = kept !== null && (ai === null || (ai.edited === true && kept.edited !== true));
     if (now === was && !sourceMoved) continue;
     changed[field.id] = now;
@@ -282,7 +294,7 @@ export function CardForm(props: Props) {
   // Two of these can be on one screen (the add form above the list, a card open in it): each names its fields apart.
   const formId = useId();
   const inputId = (fieldId: string) => `${formId}-${fieldId}`;
-  const [draft, setDraft] = useState<Record<string, string>>(() => (card ? startFrom(type, card).words : {}));
+  const [draft, setDraft] = useState<Record<string, string>>(() => (card ? startFrom(type, card).words : { ...("start" in props ? props.start : undefined) }));
   /** The files the card already holds, by field, until one is replaced or taken off. */
   const [kept, setKept] = useState<Record<string, string>>(() => (card ? startFrom(type, card).files : {}));
   const [picks, setPicks] = useState<Record<string, Picked>>({});
@@ -293,6 +305,22 @@ export function CardForm(props: Props) {
   const deleteAt = useRef<HTMLButtonElement>(null);
   /** Fields of Panki AI's unmarked here: saved as the owner's. */
   const [marked, setMarked] = useState<Record<string, true>>({});
+  /** What Panki AI wrote into the form, accepted from the card's conversation: saved as its own, by field id. */
+  const [aiWrote, setAiWrote] = useState<Record<string, AiWrote>>({});
+  const talk = useCardConversation({
+    on: "touchUp" in props && props.touchUp === true,
+    type,
+    map: mapOf(type),
+    values: draft,
+    held: busy,
+    write: (field, text, source) => {
+      edit(field.id, text);
+      if (!source) return;
+      setAiWrote((was) => ({ ...was, [field.id]: { value: text.trim(), source } }));
+      setMarked((was) => without(was, field.id));
+    },
+    onGo: (fieldId) => focusField(fieldId),
+  });
   const first = type.fields[0];
   /** The field the card is called by: a card being added says under it when one is already called so. */
   const lead = card ? null : wordsFieldOf(type);
@@ -346,7 +374,7 @@ export function CardForm(props: Props) {
 
   async function submit() {
     // While the question about deleting is up, Enter in a field answers nothing; nor while a duplicate is unresolved.
-    if (asking || unresolved) return;
+    if (asking || unresolved || talk.touching) return;
     // An example sends only the fields that go with one; the card's own are left as they are on it.
     const fields = asExample ? exampleFields : type.fields;
     // A field of files holds its file's id; a file just picked goes to Panki first, below.
@@ -386,7 +414,7 @@ export function CardForm(props: Props) {
         }
       }
       if ("onSave" in props) {
-        await props.onSave(changedFrom(type, props.card, values, marked));
+        await props.onSave(changedFrom(type, props.card, values, marked, aiWrote));
         return;
       }
       if (asExample && onAddExample && target) await onAddExample(target,NewCardExample.parse({ id: crypto.randomUUID(), values }));
@@ -428,6 +456,8 @@ export function CardForm(props: Props) {
       </h2>
       <Form onSubmit={submit} className="add-form">
         {children}
+        {/* The card's conversation with Panki AI, above its fields as in the Card drawer. */}
+        {talk.conversation}
         {type.fields.map((field) => {
           const label = field.required ? field.name : `${field.name} · optional`;
           const kinds = mediaKindsOf(field.kind);
@@ -455,41 +485,51 @@ export function CardForm(props: Props) {
             const value = draft[field.id] ?? "";
             // What Panki AI wrote is marked as the drawer marks it, changed by hand or not, until it's marked as the owner's;
             // once it holds other words than it did, the offer to do that stands under it.
-            const ai = aiSourceFor(card, field.id, value, marked[field.id] === true);
+            const ai = aiSourceFor(card, field.id, value, marked[field.id] === true, aiWrote[field.id]);
             // A Line taken from a video is the clip's words, read-only, the card's word lit in it where it's there.
             const locked = lineLocked(field, card);
             const wordAt = locked && calledBy ? value.indexOf(calledBy) : -1;
+            // While Panki AI works on the card nothing in it is changed, so an answer is never drawn against a card that moved under it.
+            const still = locked || talk.touching;
             shown = (
               <>
-                {holdsExamples(field.kind) ? (
-                  <ExampleRows
-                    id={inputId(field.id)}
-                    data-field={field.name}
-                    label={label}
-                    lead={fieldMarks(ai !== null)}
-                    autoFocus={autoFocus && field.id === first?.id}
-                    value={value}
-                    onChange={(rows) => edit(field.id, rows)}
-                    error={errors[field.id] || undefined}
-                  />
-                ) : (
-                  <TextField
-                    id={inputId(field.id)}
-                    data-field={field.name}
-                    label={label}
-                    lead={fieldMarks(ai !== null)}
-                    multiline={FIELD_KINDS[field.kind].multiline}
-                    lang={langOf(value)}
-                    autoComplete="off"
-                    autoFocus={autoFocus && field.id === first?.id && !locked}
-                    value={value}
-                    readOnly={locked}
-                    {...(locked ? { mark: wordAt >= 0 ? { from: wordAt, to: wordAt + calledBy.length } : null } : {})}
-                    onChange={(text) => edit(field.id, text)}
-                    error={errors[field.id] || undefined}
-                  />
+                {talk.tied(field, (labelEnd) =>
+                  talk.reworked(
+                    field.id,
+                    holdsExamples(field.kind) ? (
+                      <ExampleRows
+                        id={inputId(field.id)}
+                        data-field={field.name}
+                        label={label}
+                        labelEnd={labelEnd}
+                        lead={fieldMarks(ai !== null)}
+                        autoFocus={autoFocus && field.id === first?.id}
+                        readOnly={talk.touching}
+                        value={value}
+                        onChange={(rows) => edit(field.id, rows)}
+                        error={errors[field.id] || undefined}
+                      />
+                    ) : (
+                      <TextField
+                        id={inputId(field.id)}
+                        data-field={field.name}
+                        label={label}
+                        labelEnd={labelEnd}
+                        lead={fieldMarks(ai !== null)}
+                        multiline={FIELD_KINDS[field.kind].multiline}
+                        lang={langOf(value)}
+                        autoComplete="off"
+                        autoFocus={autoFocus && field.id === first?.id && !locked}
+                        value={value}
+                        readOnly={still}
+                        {...(locked ? { mark: wordAt >= 0 ? { from: wordAt, to: wordAt + calledBy.length } : null } : {})}
+                        onChange={(text) => edit(field.id, text)}
+                        error={errors[field.id] || undefined}
+                      />
+                    ),
+                  ),
                 )}
-                {ai?.edited === true ? <UnmarkAi disabled={busy} onUnmark={() => setMarked((m) => ({ ...m, [field.id]: true }))} /> : null}
+                {ai?.edited === true && !talk.touching ? <UnmarkAi disabled={busy} onUnmark={() => setMarked((m) => ({ ...m, [field.id]: true }))} /> : null}
                 {field.id === lead?.id ? (
                   <AlreadyIn
                     cards={called}
@@ -566,7 +606,7 @@ export function CardForm(props: Props) {
               Cancel
             </Button>
           ) : null}
-          <Button type="submit" variant="primary" disabled={busy || unresolved}>
+          <Button type="submit" variant="primary" disabled={busy || unresolved || talk.touching}>
             {card ? null : <Icon name="add" />}
             {card ? (busy ? "Saving…" : "Save") : asExample ? (busy ? EXAMPLE_WORDS.busy : EXAMPLE_WORDS.go) : busy ? "Adding…" : "Add card"}
           </Button>

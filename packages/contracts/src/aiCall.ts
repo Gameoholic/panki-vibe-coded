@@ -25,6 +25,8 @@ export const PIECE_GAPS = {
   noSubtitles: "no subtitles showing",
   /** A dictionary's piece, for a word none of the dictionaries that are on has it for. */
   notInDictionaries: "not in your dictionaries",
+  /** A dictionary's piece, on a card opened in Panki: the dictionaries are the extension's, and nothing is looked up there. */
+  notLookedUp: "not looked up in Panki",
   /** Nothing there to send: a video with no description, a word pointed at with no sentence around it. */
   empty: "None",
 } as const;

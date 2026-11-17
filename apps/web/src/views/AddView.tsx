@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { CalledCard, Card, CardType, Deck, NewCard, NewCardExample } from "@panki/contracts";
+import { wordsFieldOf, type CalledCard, type Card, type CardType, type Deck, type NewCard, type NewCardExample } from "@panki/contracts";
 import { Button } from "../components/Button";
 import { CardForm } from "../components/CardForm";
 import { CardList } from "../components/CardList";
@@ -17,10 +17,12 @@ type Props = {
   /** What's typed given as another example to a card that's already there; answers with that card. */
   onAddExample: (to: CalledCard, example: NewCardExample) => Promise<Card>;
   onMakeDeck: () => void;
+  /** Words the card starts with in the field it's called by (its type's Main field): what was searched for and not found. */
+  word?: string | undefined;
 };
 
 /** Add a card from the home: pick the deck in the form, add, keep adding. What you added this visit stays under the form. */
-export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onAddExample, onMakeDeck }: Props) {
+export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onAddExample, onMakeDeck, word }: Props) {
   const [added, setAdded] = useState<Card[]>([]);
 
   if (deckId === null) return <NoDecksYet onMakeDeck={onMakeDeck} />;
@@ -62,9 +64,10 @@ export function AddView({ decks, types, deckId, onPick, onAdd, onOpenCalled, onA
     );
   }
 
+  const lead = word ? wordsFieldOf(type) : null;
   return (
     <>
-      <CardForm key={type.id} type={type} onAdd={add} onOpenCalled={onOpenCalled} onAddExample={addExample} autoFocus>
+      <CardForm key={type.id} type={type} start={lead && word ? { [lead.id]: word } : undefined} onAdd={add} onOpenCalled={onOpenCalled} onAddExample={addExample} autoFocus>
         {chooser}
       </CardForm>
       {added.length > 0 ? <CardList cards={added.filter((c) => c.deckId === target)} type={type} title="Just added" /> : null}

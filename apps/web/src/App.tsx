@@ -45,7 +45,10 @@ import { ApiError, api, type Me } from "./api";
 import { Button } from "./components/Button";
 import { Icon, type IconName } from "./components/Icon";
 import { Modal } from "./components/Modal";
+import { KeyCap } from "./components/KeyCap";
+import { SearchPalette, useSearchKeys } from "./components/SearchPalette";
 import { Board } from "./components/Board";
+import { useKeyBinds } from "./keys";
 import { Segmented } from "./components/Segmented";
 import { Bone, Skeleton, type SkeletonShape } from "./components/Skeleton";
 import { rememberShape, shapeOf } from "./skeletonMemory";
@@ -97,7 +100,8 @@ type Screen =
   | { kind: "pick" }
   /** `begin`: opened from the deck picker's Start or Show cards (not kept in the address). */
   | { kind: "review"; deck: Deck; from: "deck" | "pick"; begin?: ReviewBegin | undefined }
-  | { kind: "add" }
+  /** `word`: opened from searching every deck with nothing found, what was typed as the card's words (not kept in the address). */
+  | { kind: "add"; word?: string | undefined }
   | { kind: "types" }
   | { kind: "type"; type: CardType | null; tab: TypeTab }
   | { kind: "srs" }
@@ -155,6 +159,8 @@ function routeOf(screen: Screen): Route {
       return { kind: "deck", id: screen.deck.id, tab: screen.tab, card: screen.card };
     case "review":
       return { kind: "review", id: screen.deck.id, from: screen.from };
+    case "add":
+      return { kind: "add" };
     case "type":
       return { kind: "type", id: screen.type?.id ?? null, tab: screen.tab };
     case "srsEdit":
@@ -332,6 +338,12 @@ export function App() {
   const [leaveBusy, setLeaveBusy] = useState(false);
   const [leaveFailure, setLeaveFailure] = useState<string | null>(null);
   const stay = useCallback(() => setLeaving(null), []);
+  /** Searching every deck: the palette is open. The bar's Search opens it, and Open search's keys on every screen. */
+  const [searching, setSearching] = useState(false);
+  const searchAt = useRef<HTMLButtonElement>(null);
+  const binds = useKeyBinds();
+  // Not while signed out, nor while the question about unsaved work is asked.
+  useSearchKeys(me !== null && leaving === null, () => setSearching((open) => !open));
   const fail = useCallback((e: unknown, fallback: string) => {
     if (!isSignedOut(e)) setLoadError(messageOf(e, fallback));
   }, []);
@@ -353,6 +365,7 @@ export function App() {
     setSpace(null);
     setLoadError(null);
     setLeaving(null);
+    setSearching(false);
     guard.current = null;
     setArriving(parsePath(window.location.pathname));
   }, []);
@@ -1285,7 +1298,19 @@ export function App() {
           decks === null || types === null ? (
             loading
           ) : (
-            <AddView decks={decks} types={types} deckId={addDeckId ?? decks[0]?.id ?? null} onPick={setAddDeckId} onAdd={addCardTo} onOpenCalled={openCalled} onAddExample={addExample} onMakeDeck={startDeck} />
+            // Opened again with other words filled in, it starts again from them.
+            <AddView
+              key={screen.word ?? ""}
+              decks={decks}
+              types={types}
+              deckId={addDeckId ?? decks[0]?.id ?? null}
+              word={screen.word}
+              onPick={setAddDeckId}
+              onAdd={addCardTo}
+              onOpenCalled={openCalled}
+              onAddExample={addExample}
+              onMakeDeck={startDeck}
+            />
           );
         break;
       case "types":
@@ -1465,6 +1490,14 @@ export function App() {
                   <span>{t.label}</span>
                 </Button>
               ))}
+          {/* Searching every deck, at the bar's right on a computer (Admin past it), one more cell of the bar on a phone. */}
+          {checking ? null : (
+            <Button ref={searchAt} id="tab-search" variant="tab" className="tab-search" aria-expanded={searching} aria-haspopup="dialog" onClick={() => setSearching((open) => !open)}>
+              <Icon name="search" />
+              <span>Search</span>
+              <KeyCap bind={binds.search} />
+            </Button>
+          )}
         </nav>
       )}
       {bare ? (
@@ -1507,6 +1540,23 @@ export function App() {
         </div>
       ) : null}
       {bare ? null : <main className="main">{body}</main>}
+      {searching && !bare && decks !== null && types !== null && srsTypes !== null ? (
+        <SearchPalette
+          decks={decks}
+          types={types}
+          srsTypes={srsTypes}
+          opener={searchAt}
+          onClose={() => setSearching(false)}
+          onOpen={(deck, cardId) => {
+            setSearching(false);
+            go({ kind: "deck", deck, tab: "cards", card: cardId });
+          }}
+          onAdd={(word) => {
+            setSearching(false);
+            go({ kind: "add", word });
+          }}
+        />
+      ) : null}
       {leaving && !bare ? (
         <Modal labelledBy="leave-question" onClose={stay}>
           <p id="leave-question" className="question">

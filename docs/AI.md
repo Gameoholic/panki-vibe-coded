@@ -103,7 +103,7 @@ A new place or action follows these; one that can't is talked through first.
     - The owner's data: no migration and nothing rewritten. A field changes kind only when the owner switches it; a value that isn't rows yet is read as rows (each pair of lines a row, the first its Situation, the next its sentence, no translation; a line left over a row of its own) and kept as rows once that card is saved. The owner means to delete the old field and make a new one instead.
   - [x] 4. Explain in the same format: the admin's prompt, Grammar, Conjugation and Nuance as actions, the pop-up's conversation.
 - [ ] **Automations**: automatic runs per card, video or pop-up, each with its cap; Proofread's automation, transcribing's own and downloading among them. The plan: `docs/RULES.md`, steps 1 to 7 built on local dev, the owner to try.
-- [ ] **Touch up in Panki itself**: the Add screen and a card opened in a deck. Blocked while the field mapping lives in each browser; the way out is the mapping moving to the account.
+- [x] **Touch up in Panki itself**: a card opened in a deck, the Field mapping moved onto the card type first. The plan: `docs/MAPPING.md` (the owner, 2026-11-17), both steps built, for the owner to try.
 - [ ] **A model per action**: a provider and model per place or action, "Same as Panki AI's" to begin with, so Touch up can run on a stronger model than Explain.
 - [ ] **Credits**: everything metered paid from a balance per account, granted by an admin until billing; at zero, every paid button says so.
 - [ ] **Accounts**: sign-up, password reset, who may join, in place of `pnpm user:add`. Not AI work; next in the owner's order.

@@ -1,6 +1,16 @@
 /** @panki The capture drawer, a card made from the page (`Panel`), and a notice in it (`Notice`). */
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode, type RefObject } from "react";
 import {
+  DICTIONARY_ROLES,
+  ROLES,
+  ROLE_IDS,
+  mapOf,
+  roleOf,
+  roleOfKey,
+  valuesFor,
+  type Cut,
+  type DictionaryRoleId,
+  type RoleId,
   APP_LANGUAGES,
   AiActionId,
   CaptureFacts,
@@ -142,7 +152,6 @@ import { NO_PIECES, dictionaryPieces } from "../dictionary/pieces";
 import { wordsNow } from "../dictionary/useWords";
 import { askAdd, askAddExample, askAiState, askAiStop, askCalled, askDeck, askLookup, askOpenPanki, askOptions, askPictures, askRules, askState, askTouchUp, askUpload, askVoice, askVoices, type AiShown, type RecordingAsk, type State } from "../messages";
 import { aiActionOf, automationOf } from "../automations";
-import { DICTIONARY_ROLES, ROLES, ROLE_IDS, cleanMap, mappingOn, roleOf, roleOfKey, valuesFor, type Cut, type DictionaryRoleId, type RoleId } from "../roles";
 import { useLocal } from "../local";
 import { uuid } from "../uuid";
 import { ClipPlayer } from "./ClipPlayer";
@@ -561,8 +570,7 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
  *
  * **No deck is chosen for you.** Until one has been chosen on purpose (here, or on the options page) the drawer shows
  * the decks and nothing else; the one chosen is then the one every drawer opens on. What fills which of its fields is
- * the deck's own setting, made on the options page, and it's made before anything is added: a deck whose field
- * mapping isn't switched on says so and sends there. Once it is, a field nothing fills is typed into here.
+ * its card type's Field mapping, set in Panki's card type editor; a field nothing fills is typed into here.
  *
  * **The word is what's in its field, and the sentence shows where that is.** Picking a word (in the line under a
  * player, by a double-click in the sentence) writes it in the field; typing in the field moves the lit stretch of the
@@ -577,7 +585,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   // Minted once for the panel, so pressing Add again after a lost connection is the same card, not a second one.
   const [cardId] = useState(uuid);
   const [state, setState] = useState<State | null>(lastKnown);
-  /** This browser's own: what fills each deck's fields, which decks are switched on, the deck it opens on (`local.ts`). */
+  /** This browser's own: the deck it opens on (`local.ts`). */
   const own = useLocal().drawer;
   /** Panki hasn't answered in a while: the drawer shows itself anyway, and says so. */
   const [slow, setSlow] = useState(false);
@@ -654,8 +662,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
     load();
     readAi();
     const waited = setTimeout(() => setSlow(true), SLOW_MS);
-    // Back from Panki or the options page (signed in, a deck made): what Panki says is asked for afresh. A deck's field
-    // mapping set there is this browser's own, and reaches the drawer at once (`useLocal`).
+    // Back from Panki or the options page (signed in, a deck made, a card type's Field mapping changed): what Panki says
+    // is asked for afresh.
     window.addEventListener("focus", load);
     return () => {
       alive = false;
@@ -755,7 +763,8 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const deck = loaded ? (loaded.decks.find((d) => d.id === deckId) ?? loaded.decks.find((d) => d.id === own.defaultDeckId) ?? null) : null;
   const type = loaded && deck ? (loaded.types.find((t) => t.id === deck.typeId) ?? null) : null;
   const srsType = loaded && deck ? (loaded.srsTypes.find((s) => s.id === deck.srsTypeId) ?? null) : null;
-  const map = loaded && deck && type ? cleanMap(own.maps[deck.id] ?? {}, type) : {};
+  // What fills each field is the card type's (`CardField.fills`), the same in every browser.
+  const map = loaded && deck && type ? mapOf(type) : {};
   const fieldOf = (role: RoleId) => type?.fields.find((f) => f.id === map[role]) ?? null;
   const wordField = fieldOf("word");
   const sentenceField = fieldOf("sentence");
@@ -1518,7 +1527,7 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
   const reworked = (fieldId: string | null, inside: ReactNode): ReactNode => {
     const key = fieldId === null ? null : keyOfField(fieldId);
     if (key === null) return inside;
-    if (touch.busy === "requiring" && touch.working.includes(key)) return <AiWaiting label="Panki AI is touching up">{inside}</AiWaiting>;
+    if (touch.busy === "requiring" && touch.working.includes(key)) return <AiWaiting label={TOUCH_UP_WORDS.working}>{inside}</AiWaiting>;
     if (followingField === fieldId) return <AiWaiting label={CONVERSATION_WORDS.answering}>{inside}</AiWaiting>;
     return inside;
   };
@@ -2157,22 +2166,6 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, wordClip, 
           <p className="load-error" role="alert">
             {deck.name}'s card type is missing.
           </p>
-        </>
-      );
-    }
-    // A deck is set up before anything is added to it: its field mapping is switched on, on the options page, and
-    // until it is the extension adds nothing to it.
-    if (!mappingOn(own.mappingOn, own.maps, deck.id)) {
-      return (
-        <>
-          {chooser}
-          <p className="empty">Field mapping is off for {deck.name}. Switch it on to add cards to it.</p>
-          <div className="add-actions">
-            <Button variant="primary" onClick={() => void askOptions("decks")}>
-              <Icon name="settings" />
-              Field mapping
-            </Button>
-          </div>
         </>
       );
     }

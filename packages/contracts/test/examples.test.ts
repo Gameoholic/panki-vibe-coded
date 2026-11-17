@@ -18,6 +18,7 @@ const field = (fieldId: string, kind: CardField["kind"], side: CardField["side"]
   required: false,
   tellsApart: false,
   perExample,
+  fills: null,
 });
 const fields = [field(WORD, "text", "front"), field(SENTENCE, "text", "front", true), field(CLIP, "media", "front", true), field(MEANING, "text", "back"), field(NOTE, "text", "back")];
 /** The word, the sentence and the meaning in the main column, the clip in the side one. */

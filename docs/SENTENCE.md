@@ -11,7 +11,7 @@
 ## How it stands (Claude)
 
 - A field's kind is one of `text`, `long`, `media`, `image`, `youtube`, `pitch` (`type.ts` → `FieldKind`), kept in `card_fields.kind`. A card's value is text in `card_values` whatever the kind; changing a field's kind in the card type's editor already exists, and leaves every value as it was (words in a field changed to another kind stay words).
-- Which field is the Sentence is the Field mapping's alone, kept in each browser (`storage.ts` → `maps`), never on the account. That's also what blocks Touch up in Panki itself (`AI.md`).
+- Which field is the Sentence is the Field mapping's, kept on the card type since `MAPPING.md` (`CardField.fills`), so Panki itself knows it too.
 - A card made from a video keeps where it came from: its `card_sources` row (the video, the clip's start and end), and each value's source (`card_values.source`: the Sentence's is the subtitles' words).
 
 ## The answer on prod's data (Claude)
