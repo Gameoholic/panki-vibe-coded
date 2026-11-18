@@ -3146,6 +3146,23 @@ canvas.media-frame {
   display: grid;
   gap: 12px;
 }
+/* Extra study waiting on today's reviews: a quiet line at the Today screen's foot, under the bar or its cards, lined
+   up with the bar's words. */
+.today-extra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: -6px 0 0;
+  padding-left: 17px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.today-extra .icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
 .today-head {
   display: flex;
   flex-wrap: wrap;

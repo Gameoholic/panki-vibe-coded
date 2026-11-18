@@ -124,6 +124,22 @@ function wordsOf(type: CardType, card: Card): string {
 type Today = { picked: ReadonlySet<string>; more: boolean };
 
 /**
+ * Extra study waiting on today's reviews, said at the Today screen's foot, folded or not: only once every review was
+ * done earlier today (`Stats.clearedToday`, All reviews done), so these came due since; nothing at all otherwise.
+ * `more` is how many new cards extra study would offer, as the end screen counts them; none says no count.
+ */
+function ExtraWaits({ more }: { more: number }) {
+  const { stats } = useStats(null);
+  if (!stats?.clearedToday) return null;
+  return (
+    <p className="today-extra">
+      <Icon name="lock" />
+      Finish reviews first to unlock extra study{more > 0 ? ` · ${count(more, "new card", "new cards")}` : ""}
+    </p>
+  );
+}
+
+/**
  * Today's cards before the first one (the account's `todayFirst`): the reviews and the new cards as tiles, every one picked to begin with. A press
  * leaves one out for the next review; a stage's chip, All and None do many at once; new cards past today's count are a
  * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`). Extra study at the
@@ -245,7 +261,8 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
               <div className="today-cards">{reviews.map(tile)}</div>
             </section>
           ) : null}
-          {fresh.length > 0 || others.length > 0 ? (
+          {/* None new today: no New at all, never "0 of 0". */}
+          {fresh.length > 0 ? (
             <section className="panel today-panel" aria-labelledby={`${id}-new-title`}>
               <div className="today-head">
                 <h2 id={`${id}-new-title`} className="panel-title">
@@ -264,12 +281,12 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
                   {offered.length > 0 ? allNone(offered, `${id}-new`) : null}
                 </span>
               </div>
-              {offered.length > 0 ? <div className="today-cards">{offered.map(tile)}</div> : locked ? null : <p className="empty">No new cards today.</p>}
-              {locked ? <p className="empty">Finish these reviews to unlock extra study.</p> : null}
+              <div className="today-cards">{offered.map(tile)}</div>
             </section>
           ) : null}
         </div>
       ) : null}
+      {label === undefined && reviews.length > 0 ? <ExtraWaits more={others.length} /> : null}
     </section>
   );
 }

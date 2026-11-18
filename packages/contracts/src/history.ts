@@ -401,6 +401,11 @@ export const Stats = z.object({
    * Nothing from an older server.
    */
   extraToday: z.object({ reviews: Count, started: Count }).default({ reviews: 0, started: 0 }),
+  /**
+   * Whether every review was done at some point today, in the account's day (All reviews done, `cleared.ts`): over
+   * every deck, whatever decks the stats are for. What says extra study before a review. False from an older server.
+   */
+  clearedToday: z.boolean().default(false),
   /** Answers that were right, out of the answers that were right or a miss: the past 30 days, and the 30 before. */
   right: z.object({
     days30: z.object({ right: Count, of: Count }),
