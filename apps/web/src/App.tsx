@@ -511,6 +511,28 @@ export function App() {
     };
   }, [deckId, userId, fail]);
 
+  // Whether All reviews done happened today, asked for as a deck's review opens, beside its cards, and waited on with
+  // them: its Today screen says extra study by it, drawn once with everything else.
+  const [cleared, setCleared] = useState<boolean | null>(null);
+  const reviewDeckId = screen.kind === "review" ? screen.deck.id : null;
+  useEffect(() => {
+    setCleared(null);
+    if (!reviewDeckId || userId === null) return;
+    let cancelled = false;
+    api.clearedToday().then(
+      (answer) => {
+        if (!cancelled) setCleared(answer);
+      },
+      // Only ever a line about extra study: when it can't be had, nothing is said and the review isn't held up.
+      () => {
+        if (!cancelled) setCleared(false);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewDeckId, userId]);
+
   /** Shows a screen, closing whatever the last one had open. Its address is settled by then, and recorded. */
   function show(next: Screen) {
     setCreating(false);
@@ -1065,7 +1087,7 @@ export function App() {
     }
     // Today's cards open folded to their counts, but for Show cards on the deck picker, which opens them shown.
     const parts = begin === "cards" ? [due, fresh].filter((n) => n > 0).map((n) => Math.min(n, SKELETON_ROWS_MAX)) : [];
-    if (todayFirst) return <Skeleton shape="today" parts={parts} firstReviews={due > 0} words={todayWords(due, fresh) ?? ""} start={`Start ${count(due + fresh, "card", "cards")}`} />;
+    if (todayFirst) return <Skeleton shape="today" parts={parts} firstReviews={due > 0} waits={due > 0 && shapeOf(`waits:${deckId}`, 0) > 0} words={todayWords(due, fresh) ?? ""} start={`Start ${count(due + fresh, "card", "cards")}`} />;
     return <Skeleton shape="review" />;
   }
   function plainLoading(kind: Screen["kind"]): ReactNode {
@@ -1263,7 +1285,7 @@ export function App() {
         const type = typeOf(deck);
         const srsType = srsOf(deck);
         body =
-          cards === null || decks === null || types === null || srsTypes === null || settings === null ? (
+          cards === null || cleared === null || decks === null || types === null || srsTypes === null || settings === null ? (
             loading
           ) : type === null ? (
             <p className="load-error" role="alert">
@@ -1283,6 +1305,7 @@ export function App() {
               subtitleStyle={settings.subtitleStyle}
               review={settings}
               widgets={{ decks, srsTypes, settings, onSettings: updateSettings }}
+              cleared={cleared}
               begin={screen.begin}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}

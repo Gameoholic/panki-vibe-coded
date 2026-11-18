@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { DeckId, FrameUnit, StatFrame, type FrameWay, type Stats } from "@panki/contracts";
+import { DeckId, FrameUnit, StatFrame, type ClearedResponse, type FrameWay, type Stats } from "@panki/contracts";
 import type { DbOf } from "../app";
 
 /**
  * `GET /api/stats` for every deck, `?deck=<id>` for one; `&last=3&unit=week` adds that custom frame over the past
  * (`Stats.custom`), `&next=3&unit=week` the frame ahead (`Stats.customAhead`), the days named by the API's clock.
- * Worked out on every read from the account's own database alone; nothing kept of a frame.
+ * Worked out on every read from the account's own database alone; nothing kept of a frame. `GET /api/stats/cleared`
+ * is one fact of them alone: whether All reviews done happened today.
  */
 export function statsRouter(dbOf: DbOf, now: () => number) {
   const router = Router();
@@ -35,6 +36,12 @@ export function statsRouter(dbOf: DbOf, now: () => number) {
     }
     const stats: Stats = db.stats(deckId, now(), frame);
     res.json({ stats });
+  });
+
+  // Whether All reviews done happened today (`ClearedResponse`): one fact, without the rest of the stats.
+  router.get("/cleared", (_req, res) => {
+    const cleared: ClearedResponse = { cleared: dbOf(res).clearedToday(now()) };
+    res.json(cleared);
   });
 
   return router;

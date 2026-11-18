@@ -46,6 +46,8 @@ type Props = {
   review: ReviewSettings;
   /** What Coming up's tiles at the end read besides this deck's stats: the decks, the SRS types, the settings. */
   widgets: Omit<WidgetContext, "onStale">;
+  /** Whether every review was done at some point today (All reviews done): the Today screen says extra study waits on its reviews. */
+  cleared: boolean;
   /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the account's `todayFirst` says, folded. */
   begin?: ReviewBegin;
   /** The answer with the session it happened in and how long the card was on screen before and after the flip. */
@@ -124,13 +126,11 @@ function wordsOf(type: CardType, card: Card): string {
 type Today = { picked: ReadonlySet<string>; more: boolean };
 
 /**
- * Extra study waiting on today's reviews, said at the Today screen's foot, folded or not: only once every review was
- * done earlier today (`Stats.clearedToday`, All reviews done), so these came due since; nothing at all otherwise.
- * `more` is how many new cards extra study would offer, as the end screen counts them; none says no count.
+ * Extra study waiting on today's reviews, said at the Today screen's foot, folded or not; drawn only once every review
+ * was done earlier today (All reviews done, `GET /api/stats/cleared`), so these came due since. `more` is how many new
+ * cards extra study would offer, as the end screen counts them; none says no count.
  */
 function ExtraWaits({ more }: { more: number }) {
-  const { stats } = useStats(null);
-  if (!stats?.clearedToday) return null;
   return (
     <p className="today-extra">
       <Icon name="lock" />
@@ -145,9 +145,11 @@ function ExtraWaits({ more }: { more: number }) {
  * press away. Start runs the review on what's picked, with a key of its own (`keys.ts` → `start`). Extra study at the
  * end is this too, with how many to pick added: its new cards past today's, under its name, with how many in the bar after Show cards.
  */
-function TodayCards({ id = "today", label, tools, available, type, srsType, reviews, fresh, others, today, startKey, opened, timeOf, onPick, onMore, onStart }: {
+function TodayCards({ id = "today", label, tools, available, waits = false, type, srsType, reviews, fresh, others, today, startKey, opened, timeOf, onPick, onMore, onStart }: {
   /** What its ids and its Start's hold go by: `today` before a review, `extra` for extra study. */
   id?: string;
+  /** Extra study waits on these reviews, said at the foot (`ExtraWaits`); before a review alone. */
+  waits?: boolean;
   /** Its name, at the head of the bar: "Extra study"; none before a review. */
   label?: string;
   /** What stands in the bar after Show cards: extra study's how many. */
@@ -286,7 +288,7 @@ function TodayCards({ id = "today", label, tools, available, type, srsType, revi
           ) : null}
         </div>
       ) : null}
-      {label === undefined && reviews.length > 0 ? <ExtraWaits more={others.length} /> : null}
+      {waits ? <ExtraWaits more={others.length} /> : null}
     </section>
   );
 }
@@ -326,7 +328,7 @@ function writeChartOpen(open: boolean) {
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, widgets, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, widgets, cleared, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck, review), review.pool));
   /**
@@ -560,6 +562,12 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
   const todayReviews = queued.filter((c) => !isUnseen(c));
   const todayNew = queued.filter(isUnseen);
   const otherNew = today ? [...byId.values()].filter((c) => isUnseen(c) && !queue.includes(c.id)).sort((a, b) => a.createdAt - b.createdAt) : [];
+  // Extra study waits on these reviews once today was cleared earlier; the skeleton holds the line's room next time.
+  const waits = cleared && todayReviews.length > 0;
+  const onToday = today !== null;
+  useEffect(() => {
+    if (onToday) rememberShape(`waits:${deck.id}`, waits ? 1 : 0);
+  }, [onToday, waits, deck.id]);
   function pick(ids: readonly string[], on: boolean) {
     setToday((t) => {
       if (!t) return t;
@@ -841,7 +849,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
 
   if (today) {
     return (
-      <TodayCards type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} timeOf={timeOf} onPick={pick} onMore={offerMore} onStart={start} />
+      <TodayCards waits={waits} type={type} srsType={srsType} reviews={todayReviews} fresh={todayNew} others={otherNew} today={today} startKey={binds.start} opened={begin === "cards"} timeOf={timeOf} onPick={pick} onMore={offerMore} onStart={start} />
     );
   }
   if (!card) {

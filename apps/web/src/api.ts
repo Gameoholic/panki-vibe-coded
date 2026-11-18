@@ -7,6 +7,7 @@ import {
   CardResponse,
   CardTypeList,
   CardTypeResponse,
+  ClearedResponse,
   DeckList,
   DeckResponse,
   DeckTwins,
@@ -188,6 +189,8 @@ export const api = {
     const query = new URLSearchParams({ ...(deckId === null ? {} : { deck: deckId }), ...(frame ? { [frame.way]: String(frame.frame.n), unit: frame.frame.unit } : {}) }).toString();
     return request(query ? `/api/stats?${query}` : "/api/stats", undefined, (b) => StatsResponse.parse(b).stats);
   },
+  /** Whether every review was done at some point today (All reviews done), alone: what a review's Today screen says extra study by. */
+  clearedToday: (): Promise<boolean> => request("/api/stats/cleared", undefined, (b) => ClearedResponse.parse(b).cleared),
   listTypes: (): Promise<CardType[]> => request("/api/types", undefined, (b) => CardTypeList.parse(b).types),
   addType: (type: NewCardType): Promise<CardType> => request("/api/types", send("POST", type), (b) => CardTypeResponse.parse(b).type),
   updateType: (typeId: string, update: CardTypeUpdate): Promise<CardType> => request(typePath(typeId), send("PATCH", update), (b) => CardTypeResponse.parse(b).type),

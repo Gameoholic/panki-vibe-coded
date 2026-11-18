@@ -3492,6 +3492,16 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       return api.watchHistory();
     },
     /**
+     * Whether All reviews done happened today, in the account's day, over every deck: the replay's moments
+     * (`clearedOfHistory`, `cleared.ts`) read by the day as the streaks read them (`dayTalliesOf`).
+     */
+    clearedToday(now: number): boolean {
+      const { settings } = todayAt(now);
+      const day = dayReader(settings.dayStartHour, zoneOf(settings));
+      const todayKey = day(now);
+      return clearedOfHistory().some((at) => day(at) === todayKey);
+    },
+    /**
      * Everything the Stats screen shows of this account, worked out over the rows at `now`, for every living deck or
      * one, and a custom frame when one is asked for, the last N units (`Stats.custom`) or the next (`customAhead`).
      * Windows are the account's days. No account's database reads another's.
@@ -3745,8 +3755,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         reviews: { total: reviewsOf(dayed), today: reviewsOf(inWindow(todayKey)), days7: reviewsOf(inWindow(addDays(todayKey, -6))), days30: reviewsOf(inWindow(from30)) },
         // Today's answers given in extra study, reviews and new cards apart.
         extraToday: { reviews: reviewsOf(extraToday), started: extraToday.filter(started).length },
-        // All reviews done today, as the streaks read it: the replay's moments by the account's day.
-        clearedToday: (facts.get(todayKey)?.cleared ?? 0) > 0,
         right: { days30: rightOf(inWindow(from30)), before: rightOf(inWindow(addDays(todayKey, -59), addDays(todayKey, -30))) },
         streak: pill ? { current: pill.current, best: pill.best, week: pill.row.map((p) => p.counted), todayIndex: pill.rowNow } : { current: 0, best: 0, week: Array.from({ length: 7 }, () => false), todayIndex: placeInWeek(todayKey, settings.weekEndsOn) },
         streaks,

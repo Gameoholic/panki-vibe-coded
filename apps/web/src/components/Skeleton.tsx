@@ -157,6 +157,8 @@ const TODAY_BUTTON_H = "42px";
 const TODAY_START_PX = 106;
 /** A character of the quieter words after the bar's controls (what's left for later, what extra study has), as measured. */
 const TODAY_LEFT_CHAR_PX = 6.6;
+/** Extra study waiting at the foot of today's cards (`ReviewView` → `ExtraWaits`): its words with a typical count, and its icon's 14 px and 6 px gap. */
+const EXTRA_WAITS_PX = 20 + "Finish reviews first to unlock extra study · 19 new cards".length * TODAY_LEFT_CHAR_PX;
 /** A `NumberField` as measured: its − and +, the number between them, and the gaps. */
 const NUMBER_FIELD_PX = "160px";
 const NUMBER_FIELD_H = "46px";
@@ -169,12 +171,13 @@ const BUTTON_CHAR_PX = 9;
 /**
  * `count` is how many rows, lines or tiles (for `done`, how many cards extra study offers, none for no bar); `parts`,
  * for `today`, how many tiles each of its panels holds (reviews, then new), for `layout` how many chips stand for what
- * isn't on the front and whether the answers set apart hold a row (1 or 0); `firstReviews` whether the first is the
+ * isn't on the front and whether the answers set apart hold a row (1 or 0); `waits`, for `today`, whether extra study's
+ * line stood at its foot last time on this device; `firstReviews` whether the first is the
  * reviews one, whose head alone carries a stage's chip; `words` and `start`, for `today`, what its bar will say (the
  * counts, Start's label), known from the deck, so their blocks are as wide as the words will be; `words`, for `done`,
  * what the button at its foot says, and `available` how many new cards extra study has.
  */
-export function Skeleton({ shape, count, parts, firstReviews = false, tabs = false, words = "", start = "", available = 0 }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; tabs?: boolean; words?: string; start?: string; available?: number }) {
+export function Skeleton({ shape, count, parts, firstReviews = false, waits = false, tabs = false, words = "", start = "", available = 0 }: { shape: SkeletonShape; count?: number; parts?: readonly number[]; firstReviews?: boolean; waits?: boolean; tabs?: boolean; words?: string; start?: string; available?: number }) {
   switch (shape) {
     case "today": {
       // As `ReviewView` → `TodayCards` draws today's cards: the folded bar (`TodayBar`: the counts, Show cards, Start at
@@ -218,6 +221,11 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
                 </section>
               ))}
             </div>
+          ) : null}
+          {waits ? (
+            <p className="today-extra skel-line">
+              <Bone w={`${EXTRA_WAITS_PX}px`} h="1em" className="is-faint" />
+            </p>
           ) : null}
         </section>
       );
