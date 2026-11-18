@@ -552,6 +552,10 @@ export function useCardConversation({ on, type, map, values, held, write, onGo }
             const action = AiActionId.safeParse(id);
             if (action.success) setTicked(litActions.includes(action.data) ? litActions.filter((each) => each !== action.data) : [...litActions, action.data]);
           },
+          onOnly: (id) => {
+            const action = AiActionId.safeParse(id);
+            if (action.success) setTicked([action.data]);
+          },
           onSend: () => sendFrom(null),
           onStop: touchStop.onStop,
         },

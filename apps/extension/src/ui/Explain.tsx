@@ -605,6 +605,10 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
             const parsed = AiActionId.safeParse(action);
             if (parsed.success) setTicked(lit.includes(parsed.data) ? lit.filter((each) => each !== parsed.data) : [...lit, parsed.data]);
           },
+          onOnly: (action) => {
+            const parsed = AiActionId.safeParse(action);
+            if (parsed.success) setTicked([parsed.data]);
+          },
           onSend: sendFromComposer,
           onStop: stopper.onStop,
         },
@@ -672,7 +676,7 @@ function ExampleExplain({ found, answers, onJudged }: { found: Found; answers: r
         asked: null,
         onCancel: nothing,
         follow: null,
-        composer: { place: "word", value: "", actions: switchesOf(NO_ACCOUNT_ACTIONS, answer ? [] : opening, false), sending: false, canSend: !answer, beside: null, burst: 0, onChange: nothing, onToggle: nothing, onSend: nothing },
+        composer: { place: "word", value: "", actions: switchesOf(NO_ACCOUNT_ACTIONS, answer ? [] : opening, false), sending: false, canSend: !answer, beside: null, burst: 0, onChange: nothing, onToggle: nothing, onOnly: nothing, onSend: nothing },
       }}
     />
   );

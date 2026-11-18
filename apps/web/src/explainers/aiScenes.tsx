@@ -264,6 +264,7 @@ function ExplainScene({ ai, showCostOver }: SceneProps) {
     burst,
     onChange: nothing,
     onToggle: nothing,
+    onOnly: nothing,
     onSend: nothing,
     // A pressed send, so Stop stands in Send's place while it thinks, as it does for real.
     onStop: nothing,
@@ -454,6 +455,7 @@ function TouchUpScene({ ai, showCostOver }: SceneProps) {
     burst: runs,
     onChange: nothing,
     onToggle: nothing,
+    onOnly: nothing,
     onSend: nothing,
     // A pressed send, so Stop stands in Send's place while it thinks, as it does for real.
     onStop: nothing,

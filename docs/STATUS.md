@@ -113,6 +113,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-16: Stop in Send's place while a message is on its way, in the drawer and the pop-up: the message cut, and the provider's call with it, its turn "Stopped" with Try again, the head's status Stopped; never an automation's.
 - 2026-11-16: a follow-up that takes a proposal back is a change: its branch merges into the head's conversation, "Withdrew: Meaning" under it, and the earlier chip it greyed says "Withdrawn by your follow-up" and goes to it.
 - 2026-11-16: the conversation's fades kept on its messages' box while the drawer's column or the pop-up scrolls, never over the head or Accept all (`.scroll-hold`).
+- 2026-11-18: the composer's Actions…: a click switches to that action alone and closes the list, Shift+click adds it beside the others (the Word pop-up, the Card drawer, a card opened in a deck; `Dropdown`'s `onOnly`).
 
 ## Under way
 

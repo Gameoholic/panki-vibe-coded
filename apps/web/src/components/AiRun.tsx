@@ -576,7 +576,10 @@ export type ComposerProps = {
   /** The conversation's own settings, behind the settings button beside the actions; none, no button. */
   knobs?: ConversationKnobs | null;
   onChange: (value: string) => void;
+  /** Shift with a press on an action: it's ticked on or off beside the others. */
   onToggle: (id: string) => void;
+  /** A plain press on an action: it becomes the only one ticked, through the same state `onToggle` changes. */
+  onOnly: (id: string) => void;
   onSend: () => void;
   /**
    * Stop, while a message the person sent is on its way (`useStop`): Send gives way to it in its place, the filled
@@ -587,15 +590,15 @@ export type ComposerProps = {
 
 /**
  * Where a conversation is sent from (Touch up, steered): one rounded box, what's typed growing from one line, and under
- * it inside the box one row, the actions as a dropdown ticking several (every action of the place in the registry's
- * order), what the message can cost, and Send, round in the accent with its arrow (Stop in its place while a message
+ * it inside the box one row, the actions as a dropdown (every action of the place in the registry's order; a press
+ * switches to one, Shift with it adds one beside the others), what the message can cost, and Send, round in the accent with its arrow (Stop in its place while a message
  * the person sent is out, the spark turning there for one they can't stop; the box and the actions staying live for
  * the next one, and Send and Enter going nowhere until the answer is in, nothing queued; Escape stops nothing); the
  * row wraps on a phone, the dropdown first. Enter sends, Shift+Enter is a new line, and
  * Ctrl+Enter sends here too, never reaching the form it stands in (the drawer's, whose submit is Add). A
  * conversation's foot, always there while Panki AI can answer.
  */
-export function Composer({ id, place, value, error, actions, sending, canSend, beside, burst, knobs, onChange, onToggle, onSend, onStop = null }: ComposerProps) {
+export function Composer({ id, place, value, error, actions, sending, canSend, beside, burst, knobs, onChange, onToggle, onOnly, onSend, onStop = null }: ComposerProps) {
   const box = useRef<HTMLTextAreaElement>(null);
   /** The conversation's settings, open above the box: closed whenever the composer comes, opened by its button alone. */
   const [knobsOpen, setKnobsOpen] = useState(false);
@@ -651,6 +654,7 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
                 values={actions.filter((action) => action.on && !action.disabled).map((action) => action.id)}
                 summary={actionsSummary(actions)}
                 onToggle={onToggle}
+                onOnly={onOnly}
                 anchored
               />
             </span>

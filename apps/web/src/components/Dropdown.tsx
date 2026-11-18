@@ -39,8 +39,13 @@ type Common<T extends string | number> = {
 };
 /** One choice: picking it closes the list. */
 type One<T extends string | number> = { value: T; onChange: (value: T) => void };
-/** Several, each ticked on or off where it stands; the list stays open for the next. `summary` is what the button says. */
-type Many<T extends string | number> = { values: readonly T[]; onToggle: (value: T) => void; summary: string };
+/**
+ * Several, each ticked on or off where it stands; the list stays open for the next. `summary` is what the button says.
+ * With `onOnly`, a plain press switches instead: that choice becomes the only one ticked and the list closes, as a single
+ * pick does; Shift with the press (a click, Enter or Space) ticks it on or off beside the others, the list staying open
+ * (a conversation's actions).
+ */
+type Many<T extends string | number> = { values: readonly T[]; onToggle: (value: T) => void; onOnly?: (value: T) => void; summary: string };
 type Props<T extends string | number> = Common<T> & (One<T> | Many<T>);
 
 /** One value picked from a short list that drops under its button, or several ticked in it; a tap outside or Escape closes it. Never a native select. */
@@ -119,9 +124,25 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
                   aria-readonly={o.fixed === true || undefined}
                   className={[o.fixed ? "is-fixed" : "", nested ? "is-nested" : ""].filter(Boolean).join(" ") || undefined}
                   disabled={o.disabled === true}
-                  onClick={() => {
+                  // Shift with Enter or Space is taken here, so it ticks whether or not the browser's click says Shift.
+                  onKeyDown={(e) => {
+                    if (!("values" in props) || !props.onOnly || !e.shiftKey || (e.key !== "Enter" && e.key !== " ")) return;
+                    e.preventDefault();
+                    if (!o.fixed) props.onToggle(o.id);
+                  }}
+                  // Space presses a button as it's let go: kept from pressing it a second time.
+                  onKeyUp={(e) => {
+                    if ("values" in props && props.onOnly && e.shiftKey && e.key === " ") e.preventDefault();
+                  }}
+                  onClick={(e) => {
                     if ("values" in props) {
-                      if (!o.fixed) props.onToggle(o.id);
+                      if (o.fixed) return;
+                      if (props.onOnly && !e.shiftKey) {
+                        props.onOnly(o.id);
+                        setOpen(false);
+                        return;
+                      }
+                      props.onToggle(o.id);
                       return;
                     }
                     props.onChange(o.id);
