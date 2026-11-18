@@ -3401,15 +3401,18 @@
 
 /* Looking a word up. The pop-up's frame, its word's head and a dictionary's meanings are the app's (app.css, "Panki AI
    on a page"): Settings → Panki AI's explainer draws them too. What only the extension draws of it is here. */
-/* Kept open, the pop-up's × stands in its top right corner, over its padding, and the first row keeps clear of it. It
-   scrolls with the pop-up's words: the pop-up is its own scroller, and a sticky corner would cost the first row a gap. */
+/* Kept open, the pop-up's × stands in its top right corner, over its padding, taking no room of its own. It scrolls
+   with the pop-up's words: the pop-up is its own scroller, and a sticky corner would cost the first row a gap. */
 .btn.look-close {
   position: absolute;
   top: 6px;
   right: 6px;
   z-index: 2;
 }
-.look.is-kept > .look-close + * {
+/* The corner it stands in is held whether it's there or not, so its coming (Shift, the key let go on the word) moves
+   and widens nothing: the top row only (the words found, or else the word's head with + Add), never the rest under it. */
+.look > .look-split,
+.look > .look-word:first-of-type:not(.look-split ~ .look-word) > .look-head {
   padding-right: 32px;
 }
 .look-split {

@@ -639,7 +639,7 @@ export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, car
     <>
       <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
       {/* Kept open, its × is what marks it so: no border does. */}
-      <div ref={box} className={`look ${view.locked && onClose ? "is-kept" : ""}`.trim()} role="dialog" aria-label="Word pop-up" style={{ left, width, ...place }} onPointerDown={onKeep}>
+      <div ref={box} className="look" role="dialog" aria-label="Word pop-up" style={{ left, width, ...place }} onPointerDown={onKeep}>
         {view.locked && onClose ? (
           <Button className="btn-icon look-close" aria-label="Close" onClick={onClose}>
             <Icon name="close" />
