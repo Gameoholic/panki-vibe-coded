@@ -1263,7 +1263,7 @@ export function App() {
         const type = typeOf(deck);
         const srsType = srsOf(deck);
         body =
-          cards === null || types === null || srsTypes === null || settings === null ? (
+          cards === null || decks === null || types === null || srsTypes === null || settings === null ? (
             loading
           ) : type === null ? (
             <p className="load-error" role="alert">
@@ -1282,7 +1282,7 @@ export function App() {
               srsType={srsType}
               subtitleStyle={settings.subtitleStyle}
               review={settings}
-              calendar={{ dayStartHour: settings.dayStartHour, timeZone: settings.timeZone || DEVICE_ZONE, weekEndsOn: settings.weekEndsOn }}
+              widgets={{ decks, srsTypes, settings, onSettings: updateSettings }}
               begin={screen.begin}
               onAnswer={(cardId, answer) => answerCard(deck, cardId, answer)}
               onUndo={(cardId, givenId) => undoAnswer(deck, cardId, givenId)}

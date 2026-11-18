@@ -3001,9 +3001,6 @@ canvas.media-frame {
   align-items: center;
   min-height: 1.5em;
 }
-.next-day .n.skel-line {
-  justify-content: flex-end;
-}
 .skel-panels {
   display: grid;
   gap: 16px;
@@ -5676,39 +5673,11 @@ mark.sub-blur {
   font-size: 14px;
   padding: 6px 12px;
 }
-.next-days {
+/* A deck's Coming up at a review's end: the home's tile twice, Today and Next 7 d, side by side; one above the other on a phone. */
+.review-coming {
   display: grid;
-  gap: 6px;
-}
-.next-day {
-  display: grid;
-  grid-template-columns: 100px minmax(0, 1fr) 40px;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-/* The week's total, the days above among it: set apart under a hairline. */
-.next-day.is-total {
-  margin-top: 2px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
-}
-.next-day .barwrap {
-  height: 10px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  overflow: hidden;
-}
-.next-day .bar {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-  border-radius: 999px;
-}
-.next-day .n {
-  text-align: right;
-  font-weight: 700;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 /* SRS types: what a new one starts from. */
@@ -7444,6 +7413,14 @@ mark.sub-blur {
 .w-tools > .quiet-icon > .btn-icon {
   height: 26px;
 }
+/* A tile whose window is fixed (`Tile`'s `fixed`) says it in quiet words where the dropdown would be. */
+.w-window-fixed {
+  padding-right: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  white-space: nowrap;
+}
 /* The window on a tile's head: the dropdown at a tile's size (Dropdown's `sm`). */
 .dropdown.is-small .dropdown-button {
   padding: 2px 6px 2px 9px;
@@ -8858,8 +8835,8 @@ mark.search-lit {
   .btn-answer .to {
     white-space: normal;
   }
-  .next-day {
-    grid-template-columns: 92px minmax(0, 1fr) 36px;
+  .review-coming {
+    grid-template-columns: minmax(0, 1fr);
   }
   .answer-name .field-input {
     width: 120px;

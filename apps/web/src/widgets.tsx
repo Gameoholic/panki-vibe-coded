@@ -55,7 +55,7 @@ import { StreakEditor } from "./components/StreakEditor";
 import { useSavedSoon } from "./hooks/useSavedSoon";
 import { rememberShape, shapeOf } from "./skeletonMemory";
 import { BURNED_TINT, NEW_WORDS, tintOf } from "./srsKinds";
-import { readTilePick, writeTilePick } from "./tilePicks";
+import { readTilePick, writeTilePick, type TilePick } from "./tilePicks";
 import { count, dayWords, durationLeftWords, durationParts, durationWords, fullDayWords, hourOfDayWords, hourSpanWords, langOf, leftWords, monthWords, monthYearWords, percentOf, percentWords, shortDayWords, tenthsOf, tenthsWords } from "./words";
 
 /**
@@ -1444,6 +1444,12 @@ type TileProps = {
   entry: TileEntry;
   stats: Stats | null;
   ctx: WidgetContext | null;
+  /**
+   * One window of the entry's, and no other (a deck's Coming up at a review's end): never this device's pick nor kept
+   * as one, no dropdown and no Show more, the window's name said quietly at the head. Its ids and its remembered height
+   * are its own (`coming-today`), so two of one entry stand on a page and neither touches the board's.
+   */
+  fixed?: FixedWindow;
   overlay?: ReactNode;
   className?: string;
   style?: CSSProperties | undefined;
@@ -1453,25 +1459,32 @@ type TileProps = {
  * A stat as a tile, the one anatomy: its name, the window it covers as a small dropdown and Show more where there's more
  * (taking the whole row, in place, never remembered); the number with its unit and the change against the window
  * before; the views of its breakdown; the chart, what's under the pointer said in the foot line; one line of fact; the
- * one empty line. The window and the view are this device's (`tilePicks.ts`).
+ * one empty line. The window and the view are this device's (`tilePicks.ts`), unless its window is `fixed`.
  */
-export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps) {
+export function Tile({ entry, stats, ctx, fixed, overlay, className, style }: TileProps) {
   // Every tile with a time frame takes a custom one; one that looks ahead counts it from today on.
-  const framed = entry.windows !== undefined;
+  const framed = entry.windows !== undefined && fixed === undefined;
   const way: FrameWay = entry.ahead ? "next" : "last";
-  const [frame, setFrame] = useState<StatFrame | null>(() => (framed ? (readTilePick(entry.id).frame ?? null) : null));
+  const id = fixed === undefined ? entry.id : `${entry.id}-${fixed}`;
+  // A fixed window's tile reads nothing this device picked and keeps nothing.
+  const [picked] = useState<TilePick>(() => (fixed === undefined ? readTilePick(entry.id) : {}));
+  const keep = (change: Parameters<typeof writeTilePick>[1]) => {
+    if (fixed === undefined) writeTilePick(entry.id, change);
+  };
+  const [frame, setFrame] = useState<StatFrame | null>(() => (framed ? (picked.frame ?? null) : null));
   const [win, setWin] = useState<WindowId | null>(() => {
+    if (fixed !== undefined) return fixed;
     if (!entry.windows) return null;
-    const kept = readTilePick(entry.id).window;
+    const kept = picked.window;
     if (kept === "custom" && frame) return kept;
     return kept && kept !== "custom" && windowsOf(entry).includes(kept) ? kept : (entry.window ?? entry.windows[0] ?? null);
   });
   const [view, setView] = useState<string>(() => {
-    const kept = readTilePick(entry.id).view;
+    const kept = picked.view;
     return entry.views?.some((v) => v.id === kept) && kept ? kept : (entry.view ?? entry.views?.[0]?.id ?? "");
   });
   const [measure, setMeasure] = useState<string>(() => {
-    const kept = readTilePick(entry.id).measure;
+    const kept = picked.measure;
     return entry.measures?.some((m) => m.id === kept) && kept ? kept : (entry.measures?.[0]?.id ?? "");
   });
   const [open, setOpen] = useState(false);
@@ -1482,13 +1495,13 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
   const next = win === "custom" ? custom.ahead : null;
   const out = loading ? null : win === "custom" && custom.failure !== null ? { empty: custom.failure } : entry.make({ stats, ctx, win: winStats, next, view, measure, onAt: setAt });
   const shown = out && out.empty === undefined ? out : null;
-  const more = shown?.more ?? null;
+  const more = fixed === undefined ? (shown?.more ?? null) : null;
   // A day alone is drawn by the hour: no views over it, Today's or a range's of one day.
   const views = entry.views && shown && !(entry.noViewsOn && winStats?.unit === "one") ? entry.views : null;
   const isOpen = open && more !== null;
   return (
     <Widget
-      id={entry.id}
+      id={id}
       name={entry.name}
       span={isOpen ? 3 : entry.wide ? 2 : 1}
       loading={loading}
@@ -1497,7 +1510,9 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
       className={className ?? ""}
       style={style}
       tools={
-        entry.windows || more ? (
+        fixed !== undefined ? (
+          <span className="w-window-fixed">{windowLabel(fixed, way)}</span>
+        ) : entry.windows || more ? (
           <>
             {entry.windows && win ? (
               <WindowPick
@@ -1533,7 +1548,7 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
             <div className="w-views" data-no-drag>
               {entry.measures ? (
                 <Segmented
-                  idPrefix={`tile-${entry.id}-measure`}
+                  idPrefix={`tile-${id}-measure`}
                   label={`${entry.name}: measure`}
                   size="sm"
                   options={entry.measures}
@@ -1541,13 +1556,13 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
                   onChange={(next) => {
                     setMeasure(next);
                     setAt(null);
-                    writeTilePick(entry.id, { measure: next });
+                    keep({ measure: next });
                   }}
                 />
               ) : null}
               {views ? (
                 <Segmented
-                  idPrefix={`tile-${entry.id}-view`}
+                  idPrefix={`tile-${id}-view`}
                   label={`${entry.name}: show`}
                   size="sm"
                   options={views}
@@ -1555,7 +1570,7 @@ export function Tile({ entry, stats, ctx, overlay, className, style }: TileProps
                   onChange={(next) => {
                     setView(next);
                     setAt(null);
-                    writeTilePick(entry.id, { view: next });
+                    keep({ view: next });
                   }}
                 />
               ) : null}

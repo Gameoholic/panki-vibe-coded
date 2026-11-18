@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { againPlaceOf, blursFront, stagedOrder, exampleFieldsOf, holdsWords, isBurned, valuesWithExample, sourcesWithExample, isNew, mainAnswers, offered, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type Settings, type SrsType, type SubtitleStyle, dayOf, weekStartOf } from "@panki/contracts";
-import { addDays } from "../charts";
+import { againPlaceOf, blursFront, stagedOrder, exampleFieldsOf, holdsWords, valuesWithExample, sourcesWithExample, mainAnswers, offered, resolve, stageIndex, timeLeftMs, wordsFieldOf, type Card, type CardAnswer, type CardFlagUpdate, type CardType, type Deck, type ReviewSessionEnd, type ReviewSettings, type SrsType, type SubtitleStyle, type FixedWindow } from "@panki/contracts";
 import { ApiError, api } from "../api";
 import { activeBetween, momentNow, type Moment } from "../away";
 import { Button } from "../components/Button";
@@ -19,6 +18,7 @@ import { TodayBar, todayWords } from "../components/TodayBar";
 import { useBlur } from "../hooks/useBlur";
 import { keepDouble, useHold } from "../hooks/useHold";
 import { useScreenStage } from "../hooks/useScreenStage";
+import { useStats } from "../hooks/useStats";
 import { doubleKeys, keyIn, keyOf, pressedIn, restartOf, shortcutOf, useKeyBinds, useKeybindsEnabled, type Bind } from "../keys";
 import { ledger } from "../ledger";
 import { advance, buildQueue, comesBack, isUnseen, joinLine, kindOf, leftOf, nextFresh, progressOf, startLine, togoOf, type Line } from "../reviewLine";
@@ -27,6 +27,7 @@ import { rememberShape } from "../skeletonMemory";
 import { LESSON_SCOPE } from "../srsFlow";
 import { FLAG_WORDS, NEW_WORDS, answerClass, holdAsks, isHold } from "../srsKinds";
 import { waveOf } from "../waveform";
+import { Tile, widgetOf, type WidgetContext } from "../widgets";
 import { count, langOf } from "../words";
 
 /** How a review opens from the deck picker: its Start, or its Show cards. */
@@ -43,8 +44,8 @@ type Props = {
   subtitleStyle: SubtitleStyle;
   /** How every review runs, the account's: today's cards first, the line's order, cards at a time. */
   review: ReviewSettings;
-  /** The account's days and week, its zone always named (the device's while the account has none yet): what "Coming up" counts by. */
-  calendar: Calendar;
+  /** What Coming up's tiles at the end read besides this deck's stats: the decks, the SRS types, the settings. */
+  widgets: Omit<WidgetContext, "onStale">;
   /** Picked on the deck picker: straight into the review, or today's cards shown open. Otherwise as the account's `todayFirst` says, folded. */
   begin?: ReviewBegin;
   /** The answer with the session it happened in and how long the card was on screen before and after the flip. */
@@ -78,30 +79,32 @@ type Session = { id: string; ready: Promise<boolean>; ok: boolean | null; ended:
 type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
-/** "Coming up" at the end: each day's row, by how many of the account's days from today it is. */
-const COMING_UP: readonly { label: string; days: number }[] = [
-  { label: "Today", days: 0 },
-  { label: "Tomorrow", days: 1 },
-  { label: "In 2 days", days: 2 },
-  { label: "In 3 days", days: 3 },
-];
-/** The account's clock as the end screen reads it: when its day turns, in which zone, and the day its week ends on. */
-type Calendar = Pick<Settings, "dayStartHour" | "timeZone" | "weekEndsOn">;
+/** Coming up at the end: the home's tile, once for what's left of today by the hour and once for the next 7 days. */
+const COMING_UP_WINDOWS = ["today", "days7"] as const satisfies readonly FixedWindow[];
 
 /**
- * "Coming up" by the account's days, as the API's (`dayOf`): what comes due later today, tomorrow, in 2 and in 3 days,
- * then all of it from now until the week ends (`weekEndsOn`), the days above that fall in the week among it, set apart
- * as a total. A card already due is in the review, so no row counts it. `dues` are the moments cards come due.
+ * A deck's Coming up at a review's end: the home's Coming up tile (`widgets.tsx`), its window fixed, side by side
+ * (one above the other on a phone), for this deck alone, asked for as the end screen opens, after the last answer
+ * is saved. The tile is the one the home draws; nothing of it is drawn here.
  */
-function comingUpOf(dues: readonly number[], now: number, calendar: Calendar): { label: string; n: number; total: boolean }[] {
-  const dayAt = (at: number) => dayOf(at, calendar.dayStartHour, calendar.timeZone);
-  const today = dayAt(now);
-  const weekEnd = addDays(weekStartOf(today, calendar.weekEndsOn), 6);
-  const ahead = dues.filter((at) => at > now).map(dayAt);
-  return [
-    ...COMING_UP.map(({ label, days }) => ({ label, n: ahead.filter((d) => d === addDays(today, days)).length, total: false })),
-    { label: "All this week", n: ahead.filter((d) => d <= weekEnd).length, total: true },
-  ];
+function DeckComingUp({ deckId, widgets }: { deckId: string; widgets: Omit<WidgetContext, "onStale"> }) {
+  const { stats, failure, refresh } = useStats(deckId);
+  const entry = widgetOf("coming");
+  if (!entry) return null;
+  if (failure && stats === null)
+    return (
+      <p className="load-error" role="alert">
+        {failure}
+      </p>
+    );
+  const ctx: WidgetContext = { ...widgets, onStale: refresh };
+  return (
+    <div className="review-coming">
+      {COMING_UP_WINDOWS.map((w) => (
+        <Tile key={w} entry={entry} stats={stats} ctx={ctx} fixed={w} />
+      ))}
+    </div>
+  );
 }
 
 /** The question before an answer that asks first: where it sends the card, or what putting it aside does. */
@@ -306,7 +309,7 @@ function writeChartOpen(open: boolean) {
 }
 
 /** A review of one deck: the cards due and the new ones for today, one at a time; reveal, then answer, and the answer says where the card goes. */
-export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, calendar, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
+export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, widgets, begin, onAnswer, onUndo, onFlag, onGoAdd, onHome }: Props) {
   const [byId, setById] = useState(() => new Map(cards.map((c) => [c.id, c])));
   const [line, setLine] = useState(() => startLine(buildQueue(cards, deck, review), review.pool));
   /**
@@ -825,15 +828,6 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
     );
   }
   if (!card) {
-    const now = Date.now();
-    // A suspended card comes back when it's brought back, which nothing foresees; a buried one once its bury is over at the soonest.
-    const waiting = [...byId.values()].filter((c) => !isNew(c.place) && !isBurned(srsType, c.place) && c.dueAt !== null && c.hold?.kind !== "suspend");
-    const rows = comingUpOf(
-      waiting.map((c) => Math.max(c.dueAt ?? 0, c.hold?.until ?? 0)),
-      now,
-      calendar,
-    );
-    const max = Math.max(1, ...rows.map((r) => r.n));
     const nothing = answered === 0;
     return (
       <section className="summary review-done">
@@ -869,22 +863,7 @@ export function ReviewView({ deck, cards, type, srsType, subtitleStyle, review, 
             onStart={startExtra}
           />
         ) : null}
-        <section className="panel" aria-labelledby="coming-up-title">
-          <h3 id="coming-up-title" className="panel-title">
-            Coming up
-          </h3>
-          <div className="next-days">
-            {rows.map((row) => (
-              <div key={row.label} className={row.total ? "next-day is-total" : "next-day"}>
-                <span>{row.label}</span>
-                <span className="barwrap">
-                  <span className="bar" style={{ width: `${(row.n / max) * 100}%` }} />
-                </span>
-                <span className="n">{row.n}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+        <DeckComingUp deckId={deck.id} widgets={widgets} />
         {failure ? (
           <p className="load-error" role="alert">
             {failure}

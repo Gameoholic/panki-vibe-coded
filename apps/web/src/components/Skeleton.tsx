@@ -160,8 +160,8 @@ const TODAY_LEFT_CHAR_PX = 6.6;
 /** A `NumberField` as measured: its − and +, the number between them, and the gaps. */
 const NUMBER_FIELD_PX = "160px";
 const NUMBER_FIELD_H = "46px";
-/** "Coming up" at a review's end: how wide each row's words are ("Today", "Tomorrow", "In 2 days", "In 3 days", then the week's total "All this week": `ReviewView` → `comingUpOf`), fitted from the measured ones. */
-const COMING_UP_WORDS = ["2.75em", "4.6em", "3.85em", "3.85em", "5.9em"];
+/** "Coming up" at a review's end, two tiles (`ReviewView` → `DeckComingUp`): how wide each one's window is at its head ("Today", "Next 7 d"). */
+const COMING_UP_WINDOWS = ["3em", "4.6em"];
 /** A button's room besides its words (its padding, and its icon's 16 px and 8 px gap since it has one), and a character of them, as measured: what sizes the button at a review's end. */
 const BUTTON_PAD_PX = 60;
 const BUTTON_CHAR_PX = 9;
@@ -224,8 +224,8 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
     }
     case "done": {
       // As `ReviewView` draws its end with nothing to review: the title, extra study's bar when there are new cards for
-      // it (`TodayCards` under its name, how many after Show cards, how many it has, Start), what's coming up, and the
-      // button at the foot.
+      // it (`TodayCards` under its name, how many after Show cards, how many it has, Start), Coming up's two tiles side by
+      // side, and the button at the foot.
       const extra = count ?? 0;
       const has = `${Math.max(available, extra)} new ${Math.max(available, extra) === 1 ? "card" : "cards"} available`;
       const start = `Start ${extra} ${extra === 1 ? "card" : "cards"}`;
@@ -249,24 +249,21 @@ export function Skeleton({ shape, count, parts, firstReviews = false, tabs = fal
               </div>
             </section>
           ) : null}
-          <section className="panel">
-            <h3 className="panel-title skel-line">
-              <Bone w="6.2em" h="0.9em" />
-            </h3>
-            <div className="next-days">
-              {COMING_UP_WORDS.map((w, i) => (
-                <div key={i} className={i === COMING_UP_WORDS.length - 1 ? "next-day is-total" : "next-day"}>
-                  <span className="skel-line">
-                    <Bone w={w} h="1em" />
-                  </span>
-                  <span className="barwrap" />
-                  <span className="n skel-line">
-                    <Bone w="1.1em" h="1em" />
+          <div className="review-coming">
+            {COMING_UP_WINDOWS.map((w) => (
+              <section key={w} className="panel widget">
+                <div className="w-head">
+                  <h3 className="panel-title skel-line">
+                    <Bone w="6.2em" h="0.9em" />
+                  </h3>
+                  <span className="w-window-fixed">
+                    <Bone w={w} h="0.9em" className="is-faint" />
                   </span>
                 </div>
-              ))}
-            </div>
-          </section>
+                <TileBody />
+              </section>
+            ))}
+          </div>
           <div className="add-actions add-actions-start">
             <Bone w={`${BUTTON_PAD_PX + words.length * BUTTON_CHAR_PX}px`} h="42px" />
           </div>
