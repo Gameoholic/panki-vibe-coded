@@ -215,6 +215,8 @@ const Hours = z.array(Count).length(24);
 const Weekdays = z.array(z.object({ n: Count, days: Count })).length(7);
 /** One side of Time per card: its median in ms (none without a measured showing), the window before's, and its trend. */
 const PaceSide = z.object({ ms: Count.nullable(), before: Count.nullable(), series: z.array(z.object({ start: Day, ms: Count.nullable() })) });
+/** Time per card's three sides over some of the showings. */
+const PaceSides = z.object({ total: PaceSide, front: PaceSide, back: PaceSide });
 /** A stage as a breakdown names it: its id (or `new`), its name, its colour as it stands; null draws it plain. */
 const StageKey = z.object({ key: z.string(), name: z.string(), colour: HexColour.nullable() });
 
@@ -301,12 +303,14 @@ export const WindowStats = z.object({
   /**
    * Time per card: the typical time a card takes, the median over the showings with both spans measured, in ms, for
    * each side: `front` from the card on screen to the flip, `back` from the flip to the answer, `total` the two. Each
-   * with the window before's and a trend over the window.
+   * with the window before's and a trend over the window. Over every showing (`all`), over the showings of a card standing
+   * in New (`started`, as `started` counts a card: its first answer, or a Snooze or Suspend on it before one), and over
+   * every other (`reviews`); a card left on screen is in none, never measured.
    */
   pace: z.object({
-    total: PaceSide,
-    front: PaceSide,
-    back: PaceSide,
+    all: PaceSides,
+    started: PaceSides,
+    reviews: PaceSides,
   }),
   /**
    * The account's watching, as `Watching` counts it: videos and channels watched, videos finished, each channel's time

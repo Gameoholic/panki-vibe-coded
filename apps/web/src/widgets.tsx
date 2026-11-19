@@ -145,8 +145,9 @@ type TileEntry = {
   /** Its windows look ahead (Coming up): its Custom… frame is the next N units from today, its panel saying "Next". */
   ahead?: true;
   /**
-   * What its number measures, where it measures more than one thing (Time watching: Time spent / Runtime watched): a second,
-   * small `Segmented` before its views, the number, the change, the chart and Show more all following it.
+   * What its number measures, where it measures more than one thing (Time watching: Time spent / Runtime watched; Time
+   * per card: All / New / Reviews, which showings it counts): a second, small `Segmented` before its views, the number,
+   * the change, the chart, the foot and Show more all following it.
    */
   measures?: readonly View[];
   views?: readonly View[];
@@ -334,7 +335,7 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
     const said = (j: number) => `${hourSpanWords(hourAt(j, dayStart))} · ${say(hours[j] ?? 0)}`;
     return {
       chart: <Columns values={hours} labels={hours.map((_, j) => hourLabel(j, dayStart))} words={said} now={now} ahead={now >= 0 ? now + 1 : -1} cap={capOf} onAt={onAt} />,
-      foot: total === 0 ? null : win.unit === "one" ? `Busiest: ${said(best)}` : `Busiest: ${hourSpanWords(hourAt(best, dayStart))} · ${percentWords(hours[best] ?? 0, total)} of the total`,
+      foot: total === 0 ? null : win.unit === "one" ? `Most: ${said(best)}` : `Most: ${hourSpanWords(hourAt(best, dayStart))} · ${percentWords(hours[best] ?? 0, total)} of the total`,
     };
   }
   if (view === "weekday" && weekdays) {
@@ -346,7 +347,7 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
     });
     const averaged = weekdays.some((w) => w.days > 1);
     const said = (j: number) => `${DOW_LONG[order[j] ?? 0] ?? ""} · ${say(values[j] ?? 0)}${averaged ? " a day" : ""}`;
-    return { chart: <Columns values={values} labels={order.map((d) => DOW[d] ?? "")} words={said} cap={capOf} onAt={onAt} />, foot: `Busiest: ${said(argmax(values))}` };
+    return { chart: <Columns values={values} labels={order.map((d) => DOW[d] ?? "")} words={said} cap={capOf} onAt={onAt} />, foot: `Most: ${said(argmax(values))}` };
   }
   const values = series.map((s) => s.n);
   const { labels, words } = stretchesOf(
@@ -355,7 +356,7 @@ function byView({ win, view, series, hours, weekdays, say, cap, stats, ctx, onAt
     ctx.settings.weekEndsOn,
   );
   const said = (j: number) => `${words[j] ?? ""} · ${say(values[j] ?? 0)}`;
-  return { chart: <Columns values={values} labels={labels} words={said} now={values.length - 1} cap={capOf} onAt={onAt} />, foot: `Busiest: ${said(argmax(values))}` };
+  return { chart: <Columns values={values} labels={labels} words={said} now={values.length - 1} cap={capOf} onAt={onAt} />, foot: `Most: ${said(argmax(values))}` };
 }
 
 const OVER_TIME: readonly View[] = [
@@ -368,6 +369,12 @@ const PACE_SIDES = [
   { id: "front", label: "Front" },
   { id: "back", label: "Back" },
   { id: "total", label: "Total" },
+] as const;
+/** Which showings Time per card counts, its measures: every one, a new card's (its first answer), or every other. */
+const PACE_KINDS = [
+  { id: "all", label: "All" },
+  { id: "started", label: NEW_WORDS.name },
+  { id: "reviews", label: "Reviews" },
 ] as const;
 /** Time watching's measures: the clock, or how much of the videos was covered, each part once. */
 const WATCH_MEASURES: readonly View[] = [
@@ -764,7 +771,7 @@ export const WIDGETS: readonly TileEntry[] = [
       return {
         figure: { parts: [[num(shown.length), `${shown.length === 1 ? "day" : "days"} ${view === "watching" ? "watched" : "studied"}`]], delta: deltaOf(shown.length, prev, beforeWords(win), true) },
         chart,
-        foot: `${say(total)} · busiest ${dayWords(best)}, ${say(max)}`,
+        foot: `${say(total)} · most on ${dayWords(best)}, ${say(max)}`,
       };
     },
   },
@@ -1083,14 +1090,19 @@ export const WIDGETS: readonly TileEntry[] = [
     home: true,
     windows: ["days30", "months12", "all"],
     window: "months12",
-    // Front: the card on screen to the flip; Back: the flip to the answer; Total: both.
+    // All, New or Reviews: which showings it counts, the number, the change, the chart and the foot alike. Front: the
+    // card on screen to the flip; Back: the flip to the answer; Total: both.
+    measures: PACE_KINDS,
     views: PACE_SIDES,
     view: "total",
-    make({ ctx, win, view, onAt }) {
+    make({ ctx, win, view, measure, onAt }) {
       if (!win) return { empty: "" };
       const side = PACE_SIDES.find((s) => s.id === view) ?? PACE_SIDES[2];
-      const p = win.pace[side.id];
-      if (win.pace.total.ms === null) return { empty: zeroOf(win, "0 cards timed") };
+      const kind = PACE_KINDS.find((k) => k.id === measure) ?? PACE_KINDS[0];
+      const pace = win.pace[kind.id];
+      const p = pace[side.id];
+      // None timed is said once, whichever is counted, so the choice stays to switch back from.
+      if (win.pace.all.total.ms === null) return { empty: zeroOf(win, "0 cards timed") };
       const seconds = (ms: number) => tenthsOf(ms).toFixed(1);
       const values = p.series.map((s) => (s.ms === null ? null : tenthsOf(s.ms)));
       const { labels, words } = stretchesOf(
@@ -1101,7 +1113,7 @@ export const WIDGETS: readonly TileEntry[] = [
       );
       // The foot says the other two sides, in the order a card goes, as one line: "Front 5.6 s · back 1.8 s".
       const others = PACE_SIDES.filter((s) => s.id !== side.id).flatMap((s) => {
-        const ms = win.pace[s.id].ms;
+        const ms = pace[s.id].ms;
         return ms === null ? [] : [`${s.label} ${seconds(ms)} s`];
       });
       const footLine = others.map((said, i) => (i === 0 ? said : said.charAt(0).toLowerCase() + said.slice(1)));

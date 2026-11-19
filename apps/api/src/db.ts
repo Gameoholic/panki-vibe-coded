@@ -1328,8 +1328,11 @@ type AnswerRow = {
   /** 1 when it was given in a session started as extra study, else 0 (none, or the day's review). */
   extra: number;
 };
-/** A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend). */
-type ShowingRow = Pick<AnswerRow, "cardId" | "at" | "deckId" | "thinkMs" | "decideMs" | "undoneAt">;
+/**
+ * A card shown and answered, as the time spent reads it: an answer's row, or a hold's (Snooze, Suspend), with where the
+ * card stood as it was shown.
+ */
+type ShowingRow = Pick<AnswerRow, "cardId" | "at" | "deckId" | "thinkMs" | "decideMs" | "undoneAt" | "stageFrom" | "burnedFrom" | "nodeFrom">;
 /** A session as the stats read it. */
 type SessionStatRow = { deckId: string; startedAt: number; endedAt: number | null; endedHow: string | null; leftShownMs: number | null; leftRevealed: number | null };
 type DeckScopeRow = { id: string; typeId: string; srsTypeId: string; settings: string; createdAt: number };
@@ -1824,10 +1827,14 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       p.stage_from AS stageFrom, p.burned_from AS burnedFrom, p.node_from AS nodeFrom, COALESCE(s.kind = 'extra', 0) AS extra
     FROM card_places p JOIN cards c ON c.id = p.card_id JOIN decks d ON d.id = c.deck_id LEFT JOIN review_sessions s ON s.id = p.session_id
     WHERE p.reason = 'answer' AND ${scopeWhere} ORDER BY p.at ASC, p.id ASC`);
-  // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it.
+  // A card put aside by an answer (Snooze, Suspend) counts for nothing in the stats but the time spent on it. Where it
+  // stood as it was shown is its last place standing before then (New with none), as an answer's own `*_from`.
   const selectScopeHolds = db.prepare(`
-    SELECT h.card_id AS cardId, h.at, c.deck_id AS deckId, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt FROM card_holds h
-    JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
+    SELECT h.card_id AS cardId, h.at, c.deck_id AS deckId, h.think_ms AS thinkMs, h.decide_ms AS decideMs, h.undone_at AS undoneAt,
+      q.stage_to AS stageFrom, COALESCE(q.burned_to, 0) AS burnedFrom, COALESCE(q.node_to, '[]') AS nodeFrom
+    FROM card_holds h JOIN cards c ON c.id = h.card_id JOIN decks d ON d.id = c.deck_id
+    LEFT JOIN card_places q ON q.id = (
+      SELECT p.id FROM card_places p WHERE p.card_id = h.card_id AND p.undone_at IS NULL AND p.at < h.at ORDER BY p.at DESC, p.id DESC LIMIT 1)
     WHERE ${scopeWhere} ORDER BY h.at ASC, h.id ASC`);
   const selectScopeSessions = db.prepare(`
     SELECT s.deck_id AS deckId, s.started_at AS startedAt, s.ended_at AS endedAt, s.ended_how AS endedHow, s.left_shown_ms AS leftShownMs, s.left_revealed AS leftRevealed
@@ -3604,24 +3611,27 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const burnedThen = [...ladders.values()].reduce((sum, l) => sum + (l.then[0]?.burned ?? 0), 0);
       const burnedNow = [...ladders.values()].reduce((sum, l) => sum + l.now.burned, 0);
       const orderedLadders = [...ladders.values()].sort((a, b) => a.type.createdAt - b.type.createdAt || a.type.id.localeCompare(b.type.id));
+      // An answer that started a card (its first, the card in New), or a showing of a card standing in New.
+      const started = (a: Pick<AnswerRow, "stageFrom" | "burnedFrom" | "nodeFrom">) => a.stageFrom === null && a.burnedFrom === 0 && a.nodeFrom === "[]";
 
       // Every showing of a card is time spent, whatever its answer did (one undone, Snooze, Suspend), and so is a card left
       // on screen; each at most CARD_TIME_MAX_MS, since a card left up while away isn't time spent on it, split front
       // (`think_ms`) then back (`decide_ms`) under the cap. An undone answer's showing and the card's next go are one
       // showing, the card's time (`foldUndone`); one never had another go stays apart, counted in no card's time.
+      // Whether the card stood in New as it was shown is the showing that stands's own (`started`).
       const showingsOf = (shown: readonly ShowingRow[], sessionRows: readonly SessionStatRow[]): TileShowing[] => {
-        const split = (at: number, deckOf: string, front: number, back: number, measured: boolean): TileShowing => {
+        const split = (at: number, deckOf: string, front: number, back: number, measured: boolean, isStart: boolean | null): TileShowing => {
           const frontMs = Math.min(front, CARD_TIME_MAX_MS);
-          return { at, deckId: deckOf, frontMs, backMs: Math.min(back, CARD_TIME_MAX_MS - frontMs), measured };
+          return { at, deckId: deckOf, frontMs, backMs: Math.min(back, CARD_TIME_MAX_MS - frontMs), measured, started: isStart };
         };
         const folded = foldUndone(
           [...shown].sort((a, b) => a.at - b.at).map((s) => ({ ...s, undone: s.undoneAt !== null })),
           day,
         );
         return [
-          ...folded.map((s) => split(s.at, s.deckId, s.thinkMs ?? 0, s.decideMs ?? 0, !s.undone && s.thinkMs !== null && s.decideMs !== null)),
+          ...folded.map((s) => split(s.at, s.deckId, s.thinkMs ?? 0, s.decideMs ?? 0, !s.undone && s.thinkMs !== null && s.decideMs !== null, started(s))),
           ...sessionRows.flatMap((s) =>
-            s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null ? [split(s.endedAt, s.deckId, s.leftRevealed === 1 ? 0 : s.leftShownMs, s.leftRevealed === 1 ? s.leftShownMs : 0, false)] : [],
+            s.endedHow === "left" && s.endedAt !== null && s.leftShownMs !== null ? [split(s.endedAt, s.deckId, s.leftRevealed === 1 ? 0 : s.leftShownMs, s.leftRevealed === 1 ? s.leftShownMs : 0, false, null)] : [],
           ),
         ];
       };
@@ -3643,7 +3653,6 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
       const stageKeys = new Set(stages.map((s) => s.key));
       const deckRows = new Map(decks.map((d) => [d.id, d]));
       const srsOf = srsTypesById();
-      const started = (a: AnswerRow) => a.stageFrom === null && a.burnedFrom === 0 && a.nodeFrom === "[]";
       const reviewsOf = (rows: readonly AnswerRow[]) => rows.filter((a) => !started(a)).length;
       const extraToday = inWindow(todayKey).filter((a) => a.extra === 1);
 
@@ -3779,7 +3788,7 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         })),
         coming: coming.slice(0, 7),
         added,
-        time: { byDay: timeByDay, perCardMs: windowOf("days30")?.pace.total.ms ?? null, sessions30: windowOf("days30")?.time.sessions ?? 0 },
+        time: { byDay: timeByDay, perCardMs: windowOf("days30")?.pace.all.total.ms ?? null, sessions30: windowOf("days30")?.time.sessions ?? 0 },
         tough: (windowOf("days30")?.tough.cards ?? []).slice(0, 5).map(({ cardId, deckId: of, front, misses }) => ({ cardId, deckId: of, front, misses })),
         // The account's watching is the same whatever decks are in scope: it isn't any deck's.
         watching: watchingOf(today),

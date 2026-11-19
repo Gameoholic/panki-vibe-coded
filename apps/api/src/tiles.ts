@@ -12,9 +12,11 @@ const DAY_MS = 86_400_000;
 export type TileAnswer = { at: number; cardId: string; deckId: string; miss: number | null; stage: string | null; started: boolean; living: boolean };
 /**
  * A card shown, its time already capped and split front, back in that order (`CARD_TIME_MAX_MS`). `measured` when it
- * stands and both its spans were measured, as the typical card reads it.
+ * stands and both its spans were measured, as the typical card reads it. `started` when the card stood in New as it was
+ * shown (its first answer, or a Snooze or Suspend before one), as `TileAnswer`'s; null when no card is known (one left on
+ * screen, never measured).
  */
-export type TileShowing = { at: number; deckId: string; frontMs: number; backMs: number; measured: boolean };
+export type TileShowing = { at: number; deckId: string; frontMs: number; backMs: number; measured: boolean; started: boolean | null };
 export type TileSession = { startedAt: number; deckId: string };
 export type TileCard = { createdAt: number; deckId: string; source: "typed" | "youtube" | "web" };
 /** A stretch watched of a video that counts: when, the time it took, and the part of the video it covered. */
@@ -301,18 +303,25 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "calendar" |
     const timeSeries = zeros(series.spans.length);
     const timeHours = zeros(24);
     const spent = { frontMs: 0, backMs: 0 };
-    // Time per card, each side: front (on screen to the flip), back (the flip to the answer), total.
+    // Time per card, each side: front (on screen to the flip), back (the flip to the answer), total; over every showing,
+    // a new card's, and every other's.
     const SIDES = { total: shownMs, front: (s: TileShowing) => s.frontMs, back: (s: TileShowing) => s.backMs } as const;
     type Side = keyof typeof SIDES;
     const sideNames = Object.keys(SIDES) as Side[];
-    const paceNow = { total: [] as number[], front: [] as number[], back: [] as number[] };
-    const paceBefore = { total: [] as number[], front: [] as number[], back: [] as number[] };
-    const paceTrend = { total: trend.spans.map((): number[] => []), front: trend.spans.map((): number[] => []), back: trend.spans.map((): number[] => []) };
+    const KINDS = { all: () => true, started: (s: TileShowing) => s.started === true, reviews: (s: TileShowing) => s.started === false } as const;
+    type Kind = keyof typeof KINDS;
+    const kindNames = Object.keys(KINDS) as Kind[];
+    const sidesOf = <T>(make: () => T) => ({ total: make(), front: make(), back: make() });
+    const kindsOf = <T>(make: () => T) => ({ all: sidesOf(make), started: sidesOf(make), reviews: sidesOf(make) });
+    const paceNow = kindsOf((): number[] => []);
+    const paceBefore = kindsOf((): number[] => []);
+    const paceTrend = kindsOf(() => trend.spans.map((): number[] => []));
+    const kindsFor = (s: TileShowing) => kindNames.filter((kind) => KINDS[kind](s));
     for (const s of showings) {
       const total = shownMs(s);
       if (inBefore(s.day, s.at)) {
         msBefore += total;
-        if (s.measured) for (const side of sideNames) paceBefore[side].push(SIDES[side](s));
+        if (s.measured) for (const kind of kindsFor(s)) for (const side of sideNames) paceBefore[kind][side].push(SIDES[side](s));
       }
       if (!inSpan(s.day)) continue;
       ms += total;
@@ -323,16 +332,20 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "calendar" |
       spent.frontMs += s.frontMs;
       spent.backMs += s.backMs;
       if (!s.measured) continue;
-      for (const side of sideNames) {
-        paceNow[side].push(SIDES[side](s));
-        paceTrend[side][trend.indexOf(s.day)]?.push(SIDES[side](s));
+      const at = trend.indexOf(s.day);
+      for (const kind of kindsFor(s)) {
+        for (const side of sideNames) {
+          paceNow[kind][side].push(SIDES[side](s));
+          paceTrend[kind][side][at]?.push(SIDES[side](s));
+        }
       }
     }
-    const paceOf = (side: Side) => ({
-      ms: median(paceNow[side]),
-      before: before === null ? null : median(paceBefore[side]),
-      series: trend.spans.map((t, i) => ({ start: t.from, ms: median(paceTrend[side][i] ?? []) })),
+    const paceOf = (kind: Kind, side: Side) => ({
+      ms: median(paceNow[kind][side]),
+      before: before === null ? null : median(paceBefore[kind][side]),
+      series: trend.spans.map((stretch, i) => ({ start: stretch.from, ms: median(paceTrend[kind][side][i] ?? []) })),
     });
+    const paceSidesOf = (kind: Kind) => ({ total: paceOf(kind, "total"), front: paceOf(kind, "front"), back: paceOf(kind, "back") });
     const sessionCount = sessions.filter((s) => inSpan(s.day)).length;
 
     // Watching: the stretches that count, whatever decks are in scope.
@@ -442,7 +455,7 @@ export function tilesOf(input: TilesInput): Pick<Stats, "windows" | "calendar" |
         sides: spent,
         sessions: sessionCount,
       },
-      pace: { total: paceOf("total"), front: paceOf("front"), back: paceOf("back") },
+      pace: { all: paceSidesOf("all"), started: paceSidesOf("started"), reviews: paceSidesOf("reviews") },
       watching: {
         ms: watchMs,
         before: beforeOr(watchBefore),
