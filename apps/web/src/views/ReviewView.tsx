@@ -81,8 +81,11 @@ type Session = { id: string; ready: Promise<boolean>; ok: boolean | null; ended:
 type Given = { givenId: string; cardId: string; line: Line; counts: Record<string, number>; answered: number };
 /** How many more new cards the end screen offers when the deck's own daily count is none. */
 const EXTRA_START = 10;
-/** Coming up at the end: the home's tile, once for what's left of today by the hour and once for the next 7 days. */
-const COMING_UP_WINDOWS = ["today", "days7"] as const satisfies readonly FixedWindow[];
+/**
+ * Coming up at the end: the home's tile, once for what's left of today by the hour and once for the next 7 days, whose
+ * cap names tomorrow's count (its second column) in place of the heaviest day's: today was just done.
+ */
+const COMING_UP_WINDOWS: readonly { window: FixedWindow; capAt?: number }[] = [{ window: "today" }, { window: "days7", capAt: 1 }];
 
 /**
  * A deck's Coming up at a review's end: the home's Coming up tile (`widgets.tsx`), its window fixed, side by side
@@ -103,7 +106,7 @@ function DeckComingUp({ deckId, widgets }: { deckId: string; widgets: Omit<Widge
   return (
     <div className="review-coming">
       {COMING_UP_WINDOWS.map((w) => (
-        <Tile key={w} entry={entry} stats={stats} ctx={ctx} fixed={w} />
+        <Tile key={w.window} entry={entry} stats={stats} ctx={ctx} fixed={w.window} {...(w.capAt !== undefined ? { capAt: w.capAt } : {})} />
       ))}
     </div>
   );

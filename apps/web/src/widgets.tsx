@@ -119,6 +119,8 @@ type TileInput = {
   measure: string;
   /** What's under the pointer in the chart, said in the foot line. */
   onAt: (words: string | null) => void;
+  /** The column its chart names on the cap in place of the largest (`Tile`'s `capAt`); undefined for the largest. */
+  capAt: number | undefined;
 };
 type View = { id: string; label: string };
 type CustomAhead = NonNullable<Stats["customAhead"]>;
@@ -865,7 +867,7 @@ export const WIDGETS: readonly TileEntry[] = [
     windows: ["today", "days7", "days30"],
     window: "days7",
     ahead: true,
-    make({ stats, ctx, win, next, onAt }) {
+    make({ stats, ctx, win, next, onAt, capAt }) {
       const { ahead } = stats;
       const dayStart = ctx.settings.dayStartHour;
       // Custom… (the next N days, weeks, months or years from today) or what's left of this week, month or year: a day a
@@ -886,7 +888,7 @@ export const WIDGETS: readonly TileEntry[] = [
         if (total === 0) return { empty: `0 reviews coming up ${over.within}.` };
         return {
           figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
-          chart: <Columns values={values} labels={labels} words={said} note={totals} now={0} onAt={onAt} />,
+          chart: <Columns values={values} labels={labels} words={said} note={totals} capAt={capAt} now={0} onAt={onAt} />,
           foot: `Heaviest: ${said(argmax(values))}`,
         };
       }
@@ -910,7 +912,7 @@ export const WIDGETS: readonly TileEntry[] = [
       if (total === 0) return { empty: win.window === "today" ? "0 reviews due today." : `0 reviews coming up in the next ${values.length} days.` };
       return {
         figure: { parts: [[num(total), total === 1 ? "review" : "reviews"]] },
-        chart: <Columns values={values} labels={labels} words={said} note={totals} now={0} onAt={onAt} />,
+        chart: <Columns values={values} labels={labels} words={said} note={totals} capAt={capAt} now={0} onAt={onAt} />,
         foot: win.window === "today" ? `${sayReviews(values[0] ?? 0)} due now · the rest later today` : `Heaviest: ${said(argmax(values))}`,
       };
     },
@@ -1450,6 +1452,11 @@ type TileProps = {
    * are its own (`coming-today`), so two of one entry stand on a page and neither touches the board's.
    */
   fixed?: FixedWindow;
+  /**
+   * The column its chart names on the cap, in place of the largest: 1 for the second, tomorrow in a window of days
+   * ahead (a review's end, where today was just done). Read by the entries that draw `Columns`; none for the largest.
+   */
+  capAt?: number;
   overlay?: ReactNode;
   className?: string;
   style?: CSSProperties | undefined;
@@ -1461,7 +1468,7 @@ type TileProps = {
  * before; the views of its breakdown; the chart, what's under the pointer said in the foot line; one line of fact; the
  * one empty line. The window and the view are this device's (`tilePicks.ts`), unless its window is `fixed`.
  */
-export function Tile({ entry, stats, ctx, fixed, overlay, className, style }: TileProps) {
+export function Tile({ entry, stats, ctx, fixed, capAt, overlay, className, style }: TileProps) {
   // Every tile with a time frame takes a custom one; one that looks ahead counts it from today on.
   const framed = entry.windows !== undefined && fixed === undefined;
   const way: FrameWay = entry.ahead ? "next" : "last";
@@ -1493,7 +1500,7 @@ export function Tile({ entry, stats, ctx, fixed, overlay, className, style }: Ti
   const loading = stats === null || ctx === null || (win === "custom" && custom.win === null && custom.ahead === null && custom.failure === null);
   const winStats = stats === null || win === null ? null : win === "custom" ? custom.win : ([...stats.windows, ...stats.calendar].find((w) => w.window === win) ?? null);
   const next = win === "custom" ? custom.ahead : null;
-  const out = loading ? null : win === "custom" && custom.failure !== null ? { empty: custom.failure } : entry.make({ stats, ctx, win: winStats, next, view, measure, onAt: setAt });
+  const out = loading ? null : win === "custom" && custom.failure !== null ? { empty: custom.failure } : entry.make({ stats, ctx, win: winStats, next, view, measure, onAt: setAt, capAt });
   const shown = out && out.empty === undefined ? out : null;
   const more = fixed === undefined ? (shown?.more ?? null) : null;
   // A day alone is drawn by the hour: no views over it, Today's or a range's of one day.

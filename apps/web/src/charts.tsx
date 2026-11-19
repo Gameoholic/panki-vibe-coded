@@ -24,7 +24,8 @@ export const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
  * column as its parts, bottom up, each in its colour; `ticks` a dashed mark at each column's own line (a limit). The
  * column `now` is lit, those from `ahead` on fainter. A column never vanishes: a small share still shows a stub, and
  * one at nothing a faint one (`is-zero`), so a gap in the row never reads as a day or an hour missing. `note` says
- * something quieter after the cap (Coming up's running total, "56 · 87 total"), nothing where it gives `null`.
+ * something quieter after the cap (Coming up's running total, "56 · 87 total"), nothing where it gives `null`. `capAt`
+ * names another column on its cap in place of the largest (a review's end: tomorrow's), whatever it holds.
  */
 export function Columns({
   values,
@@ -35,6 +36,7 @@ export function Columns({
   ahead = -1,
   cap = (v: number) => v.toLocaleString(),
   note,
+  capAt,
   ticks,
   stacks,
 }: Pointed & {
@@ -45,12 +47,14 @@ export function Columns({
   ahead?: number;
   cap?: (v: number) => string;
   note?: (j: number) => string | null;
+  capAt?: number | undefined;
   ticks?: readonly number[];
   stacks?: readonly (readonly { n: number; colour: string }[])[];
 }) {
   const [atJ, setAtJ] = useState<number | null>(null);
   const max = Math.max(0, ...values, ...(ticks ?? []));
-  const top = Math.max(0, ...values) > 0 ? values.indexOf(Math.max(...values)) : -1;
+  const largest = Math.max(0, ...values) > 0 ? values.indexOf(Math.max(...values)) : -1;
+  const top = capAt !== undefined && capAt >= 0 && capAt < values.length ? capAt : largest;
   const topNote = top >= 0 && note ? note(top) : null;
   const point = (j: number) => {
     setAtJ(j);
