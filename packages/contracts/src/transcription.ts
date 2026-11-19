@@ -81,10 +81,6 @@ export const TRANSCRIBE_MODES: Record<TranscribeMode, { name: string }> = {
   live: { name: "Start transcribing" },
 };
 
-/** What was done about a whole-video download for a video over the length limit, before rules held it: read by nothing (`Transcription.overLimit`). */
-export const OverLimit = z.enum(["allowed", "warn", "notAllowed"]);
-export type OverLimit = z.infer<typeof OverLimit>;
-
 /** The longest a chunk's length and its wait for a pause may be set to, in seconds: together they're the longest sound a chunk can be (`PIECE_MAX_MS`). */
 export const CHUNK_LENGTH_MAX = 60;
 export const PAUSE_WAIT_MAX = 60;
@@ -124,10 +120,8 @@ export const Transcription = z.object({
   mode: TranscribeMode,
   modesOff: z.preprocess((value) => (Array.isArray(value) ? value.filter((mode) => TRANSCRIBE_MODE_IDS.some((id) => id === mode)) : value), z.array(TranscribeMode).max(TRANSCRIBE_MODE_IDS.length)),
   wholeAfter: z.number().int().min(0).max(600),
-  /** **Length limit** in minutes: a ceiling no rule passes, so no rule transcribes (or downloads) a longer video (`rules.ts` → `lengthStop`). A press is never held to it. */
-  downloadLimit: z.number().int().min(1).max(600),
-  /** What a press on a video over the length limit did, before rules held the limit: read by nothing, kept in the shape since an older extension parses it. */
-  overLimit: OverLimit,
+  // (`downloadLimit`, a ceiling on a video's length no automation passed, and `overLimit`, what a press over it did, are
+  // gone: an automation's own minutes are the only cap on a video's length. A row kept for either stays, read by nothing.)
   /** Seconds of video the first chunk is, on a new video or after a jump. */
   firstChunk: z.number().int().min(1).max(CHUNK_LENGTH_MAX),
   /** Each next chunk is this many times as long as the last, up to the chunk length. */
@@ -148,8 +142,7 @@ export type Transcription = z.infer<typeof Transcription>;
  * The chunks run only three minutes ahead: whatever the hidden player has run ahead over is paid for, and a video left
  * early stops it, so the lead is all a quit video costs (about a cent of sound, where ten minutes is about four). At 4×
  * the lead fills at three minutes of video a minute. The chunks: 3 s, each next 1.5× the last (4.5, 7, 10, 15, 23, 34),
- * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest. No rule transcribes a
- * video over half an hour.
+ * then 45, 45… seconds, each closed at the first pause past that or 30 s later at the latest.
  */
 export const DEFAULT_TRANSCRIPTION: Transcription = {
   speed: 4,
@@ -159,8 +152,6 @@ export const DEFAULT_TRANSCRIPTION: Transcription = {
   mode: "live",
   modesOff: [],
   wholeAfter: 10,
-  downloadLimit: 30,
-  overLimit: "warn",
   firstChunk: 3,
   chunkGrowth: 1.5,
   chunkLength: 45,

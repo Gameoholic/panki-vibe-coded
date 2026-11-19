@@ -1,13 +1,14 @@
-/** @panki Which word the pointer or a held key points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `pointedOnPage`, `held`). */
+/** @panki Which word a pointer, held key or click points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `createDrawerPointer`, `pointedOnPage`, `held`). */
+import { isJapanese } from "@web/words";
 import type { Found } from "../dictionary/found";
-import type { LookKey } from "../lookSettings";
+import { HELD_KEY, clickOf, isHeld, type Binding } from "../lookSettings";
 import { askLookup } from "../messages";
 import { inPanki } from "../ui/mount";
 import { blockOf } from "./selection";
 
 /**
- * Pointing at a word to look it up: the key held while pointing opens the word's
- * popup; moving off the word with the key still held closes it, or moves it to the next word pointed at. Letting the
+ * Pointing at a word to look it up, by whatever opens the pop-up there (`lookSettings.ts` → `Binding`): a key held while
+ * pointing opens the word's popup; moving off the word with the key still held closes it, or moves it to the next word pointed at. Letting the
  * key go while on the word, or a click on it, keeps it open, the pointer free to go anywhere (into the popup), until a
  * click somewhere else or Escape; the key held over another word then looks that one up instead. The same on any page,
  * on the video site's own captions and on Panki's line under the player; only how the word under the pointer is found
@@ -40,7 +41,7 @@ export type Where = { of: "line"; lineId: number; offset: number; length: number
 
 /**
  * What's showing: the word found, where it is, whether it's kept open (the key let go on the word, or a click), and
- * whether it was opened by hover alone (where the key to hold is On hover, `LookKey`), which neither
+ * whether it was opened by hover alone (where the pop-up opens on Hover, `Binding`), which neither
  * letting go nor a press on the word keeps open, and which closes once the pointer is well away from the word.
  */
 export type View = { pointed: Pointed; found: Found[]; word: DOMRect | null; locked: boolean; hovered: boolean };
@@ -80,25 +81,81 @@ const askWorker: Find = async (text) => {
   return answer.ok ? answer.found : [];
 };
 
-/** Whether an event has the look-up key held; On hover has none to hold. */
-export function held(key: LookKey, e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean }): boolean {
-  if (key === "hover") return false;
-  return key === "shift" ? e.shiftKey : key === "ctrl" ? e.ctrlKey : e.altKey;
+type Mods = { shiftKey: boolean; ctrlKey: boolean; altKey: boolean };
+/** Whether an event has a held binding's key down; a click, hover or none has none to hold. */
+export function held(binding: Binding, e: Mods): boolean {
+  if (!isHeld(binding)) return false;
+  return binding === "shift" ? e.shiftKey : binding === "ctrl" ? e.ctrlKey : e.altKey;
 }
-/** Whether a key pressed or let go is the look-up key; with On hover, none is. */
-const isKey = (key: LookKey, name: string) => (key === "shift" ? name === "Shift" : key === "ctrl" ? name === "Control" : key === "alt" ? name === "Alt" : false);
+/** Whether a key pressed or let go is a held binding's key; for any other binding, none is. */
+const isKey = (binding: Binding, name: string) => isHeld(binding) && HELD_KEY[binding] === name;
 
 /**
- * The pointer moved over words, with `key` the one to hold there: with On hover, onto a word looks it up once the
- * pointer has rested on it for `delayMs` (Hover delay) and off the words lets the popup drift away (`hoverOver`);
- * otherwise the key held looks up what's pointed at, and not held is letting go. A page's text and Panki's own lines
- * both go through this, each with its own key and delay.
+ * The pointer moved over words, with `binding` what opens the pop-up there: with Hover, onto a word looks it up once the
+ * pointer has rested on it for `delayMs` (Hover delay) and off the words lets the popup drift away (`hoverOver`); with
+ * a held key, the key held looks up what's pointed at, and not held is letting go; with a click or none, a move opens
+ * nothing (one a click opened is kept, and a move leaves it be). A page's text and Panki's own lines both go through
+ * this, each with its own binding and delay.
  */
-export function pointWith(looker: Looker, key: LookKey, delayMs: number, e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean }, pointed: Pointed | null, at: At): void {
-  if (key === "hover") hoverOver(looker, pointed, at, delayMs);
-  else if (held(key, e)) looker.point(pointed, at);
+export function pointWith(looker: Looker, binding: Binding, delayMs: number, e: Mods, pointed: Pointed | null, at: At): void {
+  if (binding === "hover") hoverOver(looker, pointed, at, delayMs);
+  else if (held(binding, e)) looker.point(pointed, at);
   else looker.release(at);
 }
+
+/**
+ * The Card drawer bound to a held key or to Hover: a word pointed at with the key held opens the drawer on it, as does
+ * one the pointer rests on for the Hover delay. Once per word, so a move over the same word doesn't open it again; off
+ * the words, the next word opens it afresh. A click bound to the drawer is the press's own (`listenOnPage`, `Line.tsx`).
+ */
+export function createDrawerPointer() {
+  /** The word the drawer was opened on last, and the one a rest is under way on. */
+  let opened: string | null = null;
+  let resting: string | null = null;
+  let rest: ReturnType<typeof setTimeout> | null = null;
+  const stopRest = () => {
+    if (rest !== null) clearTimeout(rest);
+    rest = null;
+    resting = null;
+  };
+  return {
+    /** The pointer moved over words (`pointed` the word under it, null off every word), with `binding` what opens the drawer there. */
+    move(binding: Binding, delayMs: number, e: Mods, pointed: Pointed | null, open: (pointed: Pointed) => void) {
+      if (!pointed) {
+        stopRest();
+        opened = null;
+        return;
+      }
+      if (pointed.id === opened) return;
+      if (binding === "hover") {
+        if (pointed.id === resting) return;
+        stopRest();
+        resting = pointed.id;
+        rest = setTimeout(() => {
+          opened = pointed.id;
+          stopRest();
+          open(pointed);
+        }, delayMs);
+        return;
+      }
+      stopRest();
+      if (held(binding, e)) {
+        opened = pointed.id;
+        open(pointed);
+      }
+    },
+    /** A key pressed with the pointer on `pointed`: the drawer's held key opens it there. */
+    key(binding: Binding, name: string, pointed: Pointed | null, open: (pointed: Pointed) => void) {
+      if (!pointed || !isKey(binding, name) || pointed.id === opened) return;
+      opened = pointed.id;
+      open(pointed);
+    },
+  };
+}
+export type DrawerPointer = ReturnType<typeof createDrawerPointer>;
+
+/** Whether a click on what's pointed at is one Panki takes from the page: on a word it can look up, a Japanese letter. */
+const lookable = (pointed: Pointed) => isJapanese(pointed.text.slice(0, 1));
 
 /**
  * What's open and what's being asked about. `onView` is told every change; null is nothing showing. `popup` is where
@@ -146,7 +203,7 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     onView(next);
   };
   /** The words from the letter pointed at, asked for; the answer shown unless the pointer has moved on since (`turn`). */
-  const ask = (pointed: Pointed, turn: number, hover: boolean) => {
+  const ask = (pointed: Pointed, turn: number, hover: boolean, locked = false) => {
     void find(pointed.text)
       .catch((): Found[] => [])
       .then((found) => {
@@ -159,14 +216,14 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
           if (!view?.locked) tell(null);
           return;
         }
-        tell({ pointed, found, word: pointed.measure(first.source.length), locked: false, hovered: hover });
+        tell({ pointed, found, word: pointed.measure(first.source.length), locked, hovered: hover });
       });
   };
   const looker = {
     view: () => view,
     /**
      * The key is held and the pointer is on this (or on nothing that's a word: null), at `at`; or, `hoverAfter` given,
-     * the pointer is on a word where the key to hold is On hover, looked up once it has rested there that long (ms;
+     * the pointer is on a word where the pop-up opens on Hover, looked up once it has rested there that long (ms;
      * 0 at once). One that's kept open gives way only to another word with the key held: the pointer crossing
      * nothing, still on its own word, or only hovering, leaves it be, so one kept with Shift doesn't give way to the
      * next word merely hovered.
@@ -233,6 +290,22 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
     /** Whether the pointer is in the popup itself: there, what it was opened on isn't judged (it's being read). */
     inside(within: boolean) {
       inPopup = within;
+    },
+    /**
+     * A click bound to the pop-up, on this: looked up at once and kept open, as a click keeps one open; the one open on
+     * it already is kept.
+     */
+    press(pointed: Pointed, at?: At) {
+      if (at) lastAt = at;
+      if (view && view.pointed.id === pointed.id) {
+        looker.lock();
+        return;
+      }
+      pointedId = pointed.id;
+      askedByHover = false;
+      const turn = ++asked;
+      stopRest();
+      ask(pointed, turn, false, true);
     },
     /** A click: it stays open now until a click somewhere else. */
     lock() {
@@ -343,9 +416,13 @@ export function pointedOnPage(x: number, y: number, where: Where): Pointed | nul
 }
 
 type PageLook = {
-  /** The key to hold over what the pointer is on (null: wherever it last was). */
-  key: (target: EventTarget | null) => LookKey;
-  /** How long the pointer rests on a word there before On hover opens it, ms (Hover delay). */
+  /** What opens the pop-up over what the pointer is on (null: wherever it last was). */
+  popup: (target: EventTarget | null) => Binding;
+  /** What opens the Card drawer there; None where it can't open (the options page's sentences to try). */
+  drawer: (target: EventTarget | null) => Binding;
+  /** Opens the Card drawer on a word of the page, looked up first; none where it can't open. */
+  openDrawer?: (pointed: Pointed) => void;
+  /** How long the pointer rests on a word there before Hover opens it, ms (Hover delay). */
   delay: (target: EventTarget | null) => number;
   /** Whether looking up works over what the pointer is on right now (the settings, a dictionary to look in). */
   on: (target: EventTarget | null) => boolean;
@@ -356,7 +433,7 @@ type PageLook = {
 };
 
 /**
- * The pointer moving over words where the key to hold is On hover: onto a word opens its popup once the pointer has
+ * The pointer moving over words where the pop-up opens on Hover: onto a word opens its popup once the pointer has
  * rested on it for `delayMs` (or moves it there), off every word lets a popup opened so drift away.
  */
 export function hoverOver(looker: Looker, pointed: Pointed | null, at: At, delayMs: number): void {
@@ -365,19 +442,26 @@ export function hoverOver(looker: Looker, pointed: Pointed | null, at: At, delay
 }
 
 /**
- * Listens on the page for pointing at its words: moves with the key held, the key pressed and let go, a click to keep
- * the popup open or to close it, a scroll. What's in Panki's own places is left to them (the line under the player
- * listens for itself). Gives back what stops listening, and `again`, which looks again where the pointer was last
- * (for Panki's line, whose own pointer moves set it).
+ * Listens on the page for pointing at its words: moves with a key held or resting, the key pressed and let go, a click
+ * bound to the pop-up or the drawer, or keeping the popup open or closing it, a scroll. What's in Panki's own places is
+ * left to them (the line under the player listens for itself, and hands in where the pointer is on it: `pointedBy`).
+ * Gives back what stops listening.
  */
 export function listenOnPage(looker: Looker, look: PageLook) {
   let x = -1;
   let y = -1;
   /** Where the pointer last was: on the page, or on one of Panki's own words (which says what it is). */
   let last: (() => Pointed | null) | null = null;
-  /** The key to hold where the pointer last was, and its Hover delay: the page's, or Panki's subtitles' own (`pointedBy`). */
-  let lastKey: LookKey | null = null;
+  /**
+   * What opens the pop-up and the drawer where the pointer last was, and its Hover delay: the page's, or Panki's
+   * subtitles' own (`pointedBy`); and how the drawer opens there.
+   */
+  let lastPopup: Binding | null = null;
+  let lastDrawer: Binding | null = null;
   let lastDelay: number | null = null;
+  let lastOpen: ((pointed: Pointed) => void) | null = null;
+  const drawer = createDrawerPointer();
+  const openOnPage = (pointed: Pointed) => look.openDrawer?.(pointed);
   /** The keys held, as the last move or key said; whether the pointer is on the page's own text (not Panki's, not the popup); and what it pointed at last there. */
   let mods = { shiftKey: false, ctrlKey: false, altKey: false };
   let onPage = false;
@@ -395,12 +479,15 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     if (inPanki(e) || inPopup) return;
     const where = look.on(e.target) ? look.whereAt(e.target) : null;
     last = where === null ? null : () => pointedOnPage(x, y, where);
-    lastKey = look.key(e.target);
+    lastPopup = look.popup(e.target);
+    lastDrawer = look.drawer(e.target);
     lastDelay = look.delay(e.target);
+    lastOpen = openOnPage;
     onPage = last !== null;
     const pointed = last ? last() : null;
     lastId = pointed?.id ?? null;
-    pointWith(looker, lastKey, lastDelay, e, pointed, { x, y });
+    pointWith(looker, lastPopup, lastDelay, e, pointed, { x, y });
+    drawer.move(lastDrawer, lastDelay, e, pointed, openOnPage);
   };
   // The page's own text changing under a pointer that stood still (the site's captions as the video plays): what now
   // stands there is pointed at as a move onto it would, through the same `pointWith`: a word that comes under the
@@ -410,7 +497,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     const pointed = last();
     if ((pointed?.id ?? null) === lastId) return;
     lastId = pointed?.id ?? null;
-    pointWith(looker, lastKey ?? look.key(null), lastDelay ?? look.delay(null), mods, pointed, { x, y });
+    pointWith(looker, lastPopup ?? look.popup(null), lastDelay ?? look.delay(null), mods, pointed, { x, y });
+    drawer.move(lastDrawer ?? look.drawer(null), lastDelay ?? look.delay(null), mods, pointed, openOnPage);
   }, HOVER_LOOK_MS);
   // Keys typed in Panki's own fields (the drawer's) are theirs: a capital letter isn't a look-up.
   const onDown = (e: KeyboardEvent) => {
@@ -424,29 +512,61 @@ export function listenOnPage(looker: Looker, look: PageLook) {
       looker.lock();
       return;
     }
-    const key = lastKey ?? look.key(null);
     // Where looking up is off, the pointer's last place is none (`onMove`); Panki's line sets its own only while it's on.
-    if (!e.repeat && isKey(key, e.key) && last) looker.point(last(), { x, y });
+    if (e.repeat || !last) return;
+    if (isKey(lastPopup ?? look.popup(null), e.key)) looker.point(last(), { x, y });
+    drawer.key(lastDrawer ?? look.drawer(null), e.key, last(), lastOpen ?? openOnPage);
   };
   const onUp = (e: KeyboardEvent) => {
     mods = { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
-    if (!inPanki(e) && isKey(lastKey ?? look.key(null), e.key)) looker.release({ x, y });
+    if (!inPanki(e) && isKey(lastPopup ?? look.popup(null), e.key)) looker.release({ x, y });
   };
-  // A click anywhere but the popup and its word closes it, however it was kept open: in Panki's own places too (the
-  // line's empty room, the drawer).
+  // A click on the page's text bound to the pop-up or the drawer opens it, taken from the page only on a word Panki can
+  // look up; on the popup's own word, it keeps the popup open. A click anywhere else but the popup closes it, however it
+  // was kept open: in Panki's own places too (the line's empty room, the drawer).
   const onClick = (e: MouseEvent) => {
+    if (look.inPopup(e)) return;
     const view = looker.view();
-    if (!view || look.inPopup(e)) return;
-    if (view.word && within(view.word, e.clientX, e.clientY)) {
-      // A word of Panki's line takes its own press: it keeps the popup open, or picks the word.
-      if (inPanki(e)) return;
-      // The click that keeps the popup open is Panki's: it doesn't also press a link the word is in.
+    const onItsWord = view?.word ? within(view.word, e.clientX, e.clientY) : false;
+    // A word of Panki's line takes its own press (`Line.tsx` → `LineLook.press`).
+    if (inPanki(e)) {
+      if (view && !onItsWord) looker.close();
+      return;
+    }
+    // Panki's, not the page's: it doesn't also press a link the word is in.
+    const take = () => {
       e.preventDefault();
       e.stopPropagation();
+    };
+    const gesture = clickOf(e);
+    const drawerBy = look.drawer(e.target);
+    if (view && onItsWord) {
+      take();
+      // Bound to the drawer, a click opens it from a pop-up that's kept or opened by hover; one held open, it keeps.
+      if (gesture !== null && gesture === drawerBy && look.openDrawer && (view.hovered || view.locked)) {
+        looker.close();
+        look.openDrawer(view.pointed);
+        return;
+      }
       looker.lock();
       return;
     }
-    looker.close();
+    const where = look.on(e.target) ? look.whereAt(e.target) : null;
+    const pointed = where && gesture !== null ? pointedOnPage(e.clientX, e.clientY, where) : null;
+    if (pointed && lookable(pointed)) {
+      if (gesture === look.popup(e.target)) {
+        take();
+        looker.press(pointed, { x: e.clientX, y: e.clientY });
+        return;
+      }
+      if (gesture === drawerBy && look.openDrawer) {
+        take();
+        looker.close();
+        look.openDrawer(pointed);
+        return;
+      }
+    }
+    if (view) looker.close();
   };
   const onScroll = () => looker.release();
   const onBlur = () => looker.release();
@@ -457,12 +577,19 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   window.addEventListener("scroll", onScroll, { capture: true, passive: true });
   window.addEventListener("blur", onBlur);
   return {
-    /** Panki's own line says where the pointer is when it's over one of its words, and the key to hold and Hover delay there (its own: `lookKeySubtitles`, `lookDelayMsSubtitles`). */
-    pointedBy(pointed: () => Pointed | null, key: LookKey, delay: number) {
+    /**
+     * Panki's own line says where the pointer is when it's over one of its words, what opens the pop-up and the drawer
+     * there and its Hover delay (its own: `lookBySubtitles`, `drawerBySubtitles`, `lookDelayMsSubtitles`), and how the
+     * drawer opens on its words; and hands its moves to the drawer's pointing, so a key held or a rest opens it there.
+     */
+    pointedBy(pointed: () => Pointed | null, popup: Binding, drawerBy: Binding, delay: number, open: (pointed: Pointed) => void, e: Mods) {
       last = pointed;
-      lastKey = key;
+      lastPopup = popup;
+      lastDrawer = drawerBy;
       lastDelay = delay;
+      lastOpen = open;
       onPage = false;
+      drawer.move(drawerBy, delay, e, pointed(), open);
     },
     stop() {
       clearInterval(relook);

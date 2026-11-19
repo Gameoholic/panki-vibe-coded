@@ -67,7 +67,7 @@ import {
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, KeptPiece, PIECE_BASE64_MAX as DOWNLOAD_PIECE_BASE64_MAX, PieceAsk } from "./download/download";
-import { HoverDelay, LookKey, LookWhere } from "./lookSettings";
+import { Binding, HoverDelay, LookWhere } from "./lookSettings";
 import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { MarkPaint } from "./seekLook";
@@ -145,11 +145,21 @@ export const Local = z.object({
   modules: Modules,
   known: KnownLook,
   /**
-   * The Word pop-up's own: the keys held, globally and in Panki's subtitles, where it works and how it's laid out
-   * as kept. Whether it works on a page, and the layout filled out against the dictionaries, are `lookState`'s, asked
-   * again whenever these change.
+   * Pointing at a word: what opens the Word pop-up and the Card drawer on one (`Binding`), globally and in Panki's
+   * subtitles, their Hover delays, where it works and how the pop-up is laid out as kept. Whether it works on a page,
+   * and the layout filled out against the dictionaries, are `lookState`'s, asked again whenever these change.
    */
-  look: z.object({ key: LookKey, subtitleKey: LookKey, delay: HoverDelay, subtitleDelay: HoverDelay, where: LookWhere, sites: z.array(z.string()), layout: PopupLayout.nullable() }),
+  look: z.object({
+    popup: Binding,
+    subtitlePopup: Binding,
+    drawer: Binding,
+    subtitleDrawer: Binding,
+    delay: HoverDelay,
+    subtitleDelay: HoverDelay,
+    where: LookWhere,
+    sites: z.array(z.string()),
+    layout: PopupLayout.nullable(),
+  }),
   /** This browser's Video tracking (`watch/tracking.ts`); off until it's settled. */
   tracking: z.boolean(),
   /** The drawer's own: the deck it opens on. What fills each field is the card type's (`CardField.fills`). */

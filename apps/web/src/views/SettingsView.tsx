@@ -624,8 +624,8 @@ type TranscribingProps = {
 
 /**
  * How transcribing runs, for everyone, each change saved a moment after it's made: the engine (the language is each
- * account's own) and the length limit no rule passes, then the engine's key and its tally; how the chunks are cut. (When
- * a video is transcribed by itself, live or whole, is each account's rules, Settings → Rules; whether the transcript
+ * account's own), then the engine's key and its tally; how the chunks are cut. (When a video is transcribed by itself,
+ * and up to how long a video, is each account's automations, Settings → Automations; whether the transcript
  * replaces the site's captions is the extension's: only what costs is set here.)
  */
 function Transcribing({ status, onStatus }: TranscribingProps) {
@@ -648,14 +648,6 @@ function Transcribing({ status, onStatus }: TranscribingProps) {
           </p>
         ) : null}
         <Setting id="engine" label="Engine" control={<Dropdown id="transcribe-engine" label="Engine" options={ENGINE_OPTIONS} value={current.engine} disabled={ENGINE_IDS.length < 2} onChange={(engine) => patch({ engine })} />} />
-        {/* The length limit (the setting's key is still `downloadLimit`): "download" isn't said on screen. A ceiling no rule
-            passes (`rules.ts` → `lengthStop`); a press is never held to it. */}
-        <Setting
-          id="downloadLimit"
-          label="Length limit"
-          control={<NumberField id="transcribe-download-limit" label="Length limit in minutes" value={current.downloadLimit} min={1} max={600} suffix="min" onChange={(downloadLimit) => patch({ downloadLimit })} />}
-          why="No automation transcribes a longer video."
-        />
         <KeyPanel id="engine" title={engine.name} from={engine.vendor} label="API key" status={status.key} saved={status.saved} schema={EngineKeyUpdate} onSave={async (key) => onStatus(await api.setEngineKey(current.engine, key))}>
           {/* Read again whenever the key changes: the saved key's text is the sign of that. */}
           <EngineAccountLines keyed={status.key !== null} turn={(status.saved ?? "").length} />
@@ -1116,8 +1108,8 @@ function AdminPanel({ tab, onSaveStatus, onGuard }: { tab: AdminTab } & AdminEdi
         ) : failure ? null : (
           <>
             {/* Rows as many as fill each panel's real height on a computer, measured on a scratch Panki. */}
-            {/* Transcribing (with the length limit and its line now), Word audio (both with their Usage) and Panki AI are not measured. */}
-            <LoadingPanel id="transcribing" title="Transcribing" rows={10} />
+            {/* Transcribing (a row fewer since the length limit went), Word audio (both with their Usage) and Panki AI are not measured. */}
+            <LoadingPanel id="transcribing" title="Transcribing" rows={9} />
             <LoadingPanel id="chunks" title="Chunks" rows={15} />
             <LoadingPanel id="fixing" title="Editing" rows={2} />
           </>

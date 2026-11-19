@@ -88,9 +88,9 @@ export function transcriptsRouter(dbOf: DbOf, shared: Shared, engines: Engines, 
   });
 
   // The whole video ordered (Full): downloaded and transcribed by the engine, in the background; the answer is the
-  // transcript with the download under way in it (the one already under way, when there is one). The length limit is a
-  // ceiling on rules (`Rules.startRun`, asked before a rule orders it); a press is the viewer's own choice and goes ahead
-  // whatever the length.
+  // transcript with the download under way in it (the one already under way, when there is one). An automation's own
+  // minutes hold it (`Rules.startRun`, asked before an automation asks for it); a press is the viewer's own choice and
+  // goes ahead whatever the length.
   router.post("/:videoId/whole", (req, res) => {
     const videoId = videoOf(req, res);
     if (!videoId) return;

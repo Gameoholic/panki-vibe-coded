@@ -1,7 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
   ENGINES,
-  RULE_MINUTES_MAX,
   RULE_TRIGGERS,
   type RuleRunStop,
   type RuleActionId,
@@ -193,8 +192,8 @@ export function createRules(dbFor: (userId: string) => Db, shared: Shared, calls
     /**
      * A page heard a trigger and asks to run its rule on a video (`POST /api/rules/:ruleId/runs`): the rule must be on and
      * one a page hears; a watched threshold met by the video's whole watch time as Video tracking keeps it, or this
-     * visit's where that's more (not yet: how much more, nothing kept); the video no longer than its minutes and, for
-     * transcribing, the admin's length limit; and for transcribing, the video's whole cost at the engine's listed price
+     * visit's where that's more (not yet: how much more, nothing kept); the video no longer than its own minutes, the one
+     * cap on a video's length; and for transcribing, the video's whole cost at the engine's listed price
      * inside the account's daily cap. A video the rule ran on and paid for before goes again with nothing new kept
      * (its cost was counted then). Every go and every stop is a row.
      */
@@ -208,8 +207,7 @@ export function createRules(dbFor: (userId: string) => Db, shared: Shared, calls
         if (watched < wanted) return { go: false, why: null, waitMs: wanted - watched };
       }
       const transcribes = rule.do === "transcribe" || rule.do === "transcribeWhole";
-      // The admin's length limit is transcribing's ceiling: a download costs Panki nothing, and is held to its own minutes alone.
-      const long = lengthStop(rule, ask.lengthMs, transcribes ? shared.getTranscription().downloadLimit : RULE_MINUTES_MAX);
+      const long = lengthStop(rule, ask.lengthMs);
       if (long !== null) {
         keep(db, rule, ask.subject, "capped", 0, `${long}.`);
         return { go: false, why: long, waitMs: 0 };

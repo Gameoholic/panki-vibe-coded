@@ -69,8 +69,11 @@ function parentOf(el: Element): Element | null {
 export type LineLook = {
   /** The pointer moved over the line, or the line was drawn again under it: onto word `at` (its button), or off every word (null). */
   move: (at: number | null, button: HTMLElement | null, e: PointerAt) => void;
-  /** A press on word `at`: true when it was the popup's to take (it keeps the popup open), and isn't a pick. */
-  press: (at: number) => boolean;
+  /**
+   * A press on word `at` (its button), with the keys held with it: true when it isn't a pick (the pop-up's to open or
+   * keep, or bound to nothing), false when it's the Card drawer's, a pick.
+   */
+  press: (at: number, button: HTMLElement, e: { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey: boolean }) => boolean;
 };
 
 type Props = {
@@ -148,8 +151,8 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
             className={`tok ${within(now, i) ? "is-now" : ""} ${KNOWN_CLASS[known?.at(i) ?? "none"]} ${edited?.(i) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}
             aria-pressed={within(picked, i)}
             style={known?.at(i) === "known" ? ({ "--known": known.tintAt(i) } as CSSProperties) : undefined}
-            onClick={() => {
-              if (look?.press(i)) return;
+            onClick={(e) => {
+              if (look?.press(i, e.currentTarget, e)) return;
               onPick(pick(picked, i));
             }}
             onDoubleClick={onFix ? () => onFix(i) : undefined}

@@ -13,7 +13,7 @@ import newsPicture from "@web/explainers/thumbs/news-picture.png";
 import { clock, durationLeftWords, hourWords } from "@web/words";
 import type { KnownMoment } from "../capture/known";
 import { HOVER_KEEP } from "../capture/look";
-import { keyWordOf, type LookKey } from "../lookSettings";
+import { isHeld, keyWordOf, type Binding } from "../lookSettings";
 import { spanOver, tokensOf, type Span, type Token } from "../capture/words";
 import type { DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
@@ -21,7 +21,7 @@ import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
 import { barShows, barSide, isPankiBar, resumeTo, type BarControl, type BarLayout } from "../modules";
 import { popupLayoutOf, withMeanings } from "../popupLayout";
-import { barOf, shortSkipOf, type Stored } from "../storage";
+import { barOf, lookByOf, shortSkipOf, type Stored } from "../storage";
 import { Burst } from "../ui/Burst";
 import { Line } from "../ui/Line";
 import { LookupBody } from "../ui/Lookup";
@@ -191,46 +191,69 @@ function usePointing() {
   };
 }
 
+/** What opens the pop-up globally, as this browser has it. The explainers play with the settings as they are. */
+const popupBy = (store: Stored): Binding => lookByOf(store).popup;
+/** The key a click bound to the pop-up is pressed with, as a keycap names it; none for a click alone. */
+const CLICK_WITH: Partial<Record<Binding, string>> = { "shift-click": "Shift", "ctrl-click": "Ctrl", "alt-click": "Alt" };
+const isClick = (binding: Binding) => binding === "click" || binding in CLICK_WITH;
 /**
- * The key to hold as this browser has it, held down (nothing, for On hover, where pointing is enough); the key's name,
- * or null. The explainers play with the settings as they are.
+ * What opens the pop-up done on the word the pointer is on: a held key held down (its name given back, to let go of
+ * later), a click with its key, or nothing for Hover, where pointing is enough.
  */
-function holdKey(t: Tools, key: LookKey): string | null {
-  if (key === "hover") return null;
-  const name = keyWordOf(key);
-  t.hold(name);
-  return name;
+async function openOn(t: Tools, binding: Binding): Promise<string | null> {
+  if (isHeld(binding)) {
+    const name = keyWordOf(binding);
+    t.hold(name);
+    return name;
+  }
+  if (!isClick(binding)) return null;
+  const withKey = CLICK_WITH[binding];
+  if (withKey) t.hold(withKey);
+  await t.click();
+  if (withKey) t.letGo(withKey);
+  return null;
 }
-/** How long the pointer stands on a word before its pop-up opens: a moment, and On hover's Hover delay as this browser has it. */
-const restOn = (store: Stored) => 200 + (store.lookKey === "hover" ? store.lookDelayMs : 0);
-/** The pop-up kept open as this browser keeps it: the key let go on the word, or, opened by hover, Shift pressed. */
-async function keepOpen(t: Tools, held: string | null) {
+/** How long the pointer stands on a word before its pop-up opens: a moment, and Hover's Hover delay as this browser has it. */
+const restOn = (store: Stored) => 200 + (popupBy(store) === "hover" ? store.lookDelayMs : 0);
+/** The pop-up kept open as this browser keeps it: the key let go on the word, or, opened by hover, Shift pressed; a click keeps what it opens. */
+async function keepOpen(t: Tools, held: string | null, binding: Binding) {
   if (held) {
     t.letGo(held);
     return;
   }
+  if (binding !== "hover") return;
   t.hold(HOVER_KEEP);
   await t.wait(250);
   t.letGo(HOVER_KEEP);
 }
 
-/** The Word pop-up: the key held over a word of a Japanese page, along the line, let go, closed. */
+/** The Word pop-up: opened on a word of a Japanese page as this browser opens it globally, along the line, kept, closed. */
 function PopupScene({ store }: { store: Stored }) {
   const { dictionaries, found } = useLookups();
   const p = usePointing();
   const script = async (t: Tools) => {
+    const by = popupBy(store);
     p.close();
     t.frame(p.article());
     await t.move([34, 44], 400);
     await t.move(p.el("kissa"));
-    const key = holdKey(t, store.lookKey);
+    // Nothing opens the pop-up globally: the pointer only crosses the page.
+    if (by === "none") {
+      await t.move(p.el("mitsuke"), 450);
+      await t.wait(900);
+      t.frame(p.article());
+      return;
+    }
+    const key = await openOn(t, by);
     await t.wait(restOn(store));
     await p.point(t, "kissa");
     await t.wait(1300);
     await t.move(p.el("mitsuke"), 450);
+    // A click opens one word at a time: the next is clicked too.
+    if (isClick(by)) await openOn(t, by);
     await p.point(t, "mitsuke");
     await t.wait(1300);
-    await keepOpen(t, key);
+    await keepOpen(t, key, by);
     await t.wait(300);
     await t.move(p.popup(), 550);
     await t.wait(900);
@@ -265,8 +288,11 @@ function KnownScene({ store }: { store: Stored }) {
       await t.wait(220);
     }
     await t.wait(700);
+    const by = popupBy(store);
+    // Nothing opens the pop-up globally: the tints alone.
+    if (by === "none") return;
     await t.move(p.el("kissa"));
-    const key = holdKey(t, store.lookKey);
+    const key = await openOn(t, by);
     await t.wait(restOn(store));
     await p.point(t, "kissa");
     await t.wait(1600);
@@ -275,7 +301,7 @@ function KnownScene({ store }: { store: Stored }) {
     t.frame(p.article());
     await t.wait(250);
     await t.move(p.el("mitsuke"));
-    holdKey(t, store.lookKey);
+    await openOn(t, by);
     await t.wait(restOn(store));
     await p.point(t, "mitsuke");
     await t.wait(1300);

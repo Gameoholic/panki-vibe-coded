@@ -38,7 +38,9 @@ import { z } from "zod";
 // 16: a video is finished at its Video end or its real end: `Settings.finishedWithinSec` and `WatchedVideo.finishedWithinMs`
 // are gone (15 would go on finishing in the last 20 s), and a rule can find where the video ends (`RULE_ACTIONS`
 // `findVideoEnd`), which 15 refuses in the settings it reads.
-export const EXTENSION_PROTOCOL = 16;
+// 17: transcribing's settings no longer carry the length limit (`Transcription.downloadLimit`, `overLimit`), which 16
+// requires in what it reads.
+export const EXTENSION_PROTOCOL = 17;
 
 /** The header every call from the extension carries its protocol number in. A call without one (the app, an extension from before) isn't asked. */
 export const EXTENSION_HEADER = "x-panki-extension";

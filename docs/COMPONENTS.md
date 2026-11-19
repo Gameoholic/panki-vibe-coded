@@ -214,7 +214,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | captions | `capture/captions.ts` | A video's captions as lines with times (`createCaptions`, `lineAt`, `timeOf`, `beatsOf`, `cuesOf`). |
 | known | `capture/known.ts` | Words already in the cards, marked where they stand, and each one's cards (`startKnown`, `useKnown`, `knownAs`, `knownCards`, `markKnownOnPage`). Never a second way of marking one. |
 | listening | `capture/listening.tsx` | Pointing at a word on a page to open its pop-up (`createListening`). Never a second listener for words on a page. |
-| look | `capture/look.ts` | Which word the pointer or a held key points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `pointedOnPage`, `held`). |
+| look | `capture/look.ts` | Which word a pointer, held key or click points at, on a page or in Panki's lines (`createLooker`, `listenOnPage`, `createDrawerPointer`, `pointedOnPage`, `held`). |
 | record | `capture/record.ts` | Recording a stretch of a video off the player, and why it failed (`recordStretch`, `Recorded`, `RecordFacts`, `RecordError`, `RecordCancelled`). |
 | replay | `capture/replay.ts` | Playing a stretch of the page's video to hear a clip (`createReplay`). Never a second thing that moves the player's time while the drawer is open. |
 | selection | `capture/selection.ts` | What's selected on a page with its sentence, and the sentence around words in any text (`takeSelection`, `sentenceAround`). Never a second reader of sentences. |
@@ -225,7 +225,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | useWords | `dictionary/useWords.ts` | A line's words, split by the dictionaries (`useWords`, `wordsNow`). |
 | kept | `kept.ts` | Anything kept of what Panki says, read again when its state header changes (`KEPT`, `readKept`, `putKept`, `peekKept`). Never a cache of its own. |
 | local | `local.ts` | This browser's own settings on a page, read and changed (`loadLocal`, `localNow`, `useLocal`, `onLocal`, `amendLocal`). Never a default drawn then replaced. |
-| lookSettings | `lookSettings.ts` | How the Word pop-up opens: its keys, its sites, the hover delay, the permissions it needs (`LookKey`, `LookWhere`, `HOVER_DELAY`, `lookAllowed`). |
+| lookSettings | `lookSettings.ts` | What opens the Word pop-up and the Card drawer on a word, its sites, the hover delay, the permissions it needs (`Binding`, `clickOf`, `LookWhere`, `HOVER_DELAY`, `lookAllowed`). |
 | messages | `messages.ts` | What a page's script asks the worker, each message a shape (`askLocal`, `askState`, `askDeck`, `askAdd`, `askUpload`). |
 | modules | `modules.ts` | Which of Panki's parts are on in this browser, the panel's views, the pill's parts, the player bar's controls (`Modules`, `PANEL_VIEWS`, `PILL_PARTS`, `BAR_CONTROLS`). |
 | ColourByStage | `options/ColourByStage.tsx` | Words in the decks' colour, Use stage's color or Custom color (`ColourByStage`). |

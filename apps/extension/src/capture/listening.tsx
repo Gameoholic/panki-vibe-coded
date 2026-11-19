@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { dictionariesAre } from "../dictionary/useWords";
 import type { Found } from "../dictionary/found";
 import { localNow, onLocal } from "../local";
-import { askLookState } from "../messages";
+import { askLookState, askLookup } from "../messages";
 import { popupLayoutOf, type PopupLayout } from "../popupLayout";
 import type { MorePieces } from "../ui/Explain";
 import { Lookup } from "../ui/Lookup";
@@ -21,7 +21,7 @@ type Options = {
   theme?: () => "light" | "dark";
   /** What the popup's place goes in: the page, or what's filling the screen (a player gone full screen). */
   parent?: () => Element;
-  /** Whether a point on the page is on Panki subtitles drawn by the page itself (a card's clip in Panki), where the key to hold is theirs. */
+  /** Whether a point on the page is on Panki subtitles drawn by the page itself (a card's clip in Panki), where what opens the pop-up is theirs. */
   subtitlesAt?: (target: EventTarget | null) => boolean;
   /** What the page adds to what Explain sends of a word pointed at (a video's metadata, the subtitles around it, its description); none anywhere else. */
   aiContext?: MorePieces;
@@ -43,7 +43,7 @@ const OVER_ALL = "position: fixed; inset: 0; z-index: 2147483647; pointer-events
 export function createListening(options: Options) {
   /** What the worker says of this page: nothing works here until it has. */
   let here: { on: boolean; subtitlesOn: boolean; layout: PopupLayout } = { on: false, subtitlesOn: false, layout: popupLayoutOf(null, []) };
-  /** The keys to hold and their Hover delays, globally and in Panki's subtitles, as this browser has them. */
+  /** What opens the pop-up and the drawer and their Hover delays, globally and in Panki's subtitles, as this browser has them. */
   const keys = () => localNow().look;
   const place = makePlace(options.theme?.() ?? "light");
   place.host.style.cssText = OVER_ALL;
@@ -81,7 +81,18 @@ export function createListening(options: Options) {
     );
   }
 
-  /** The page's listening, from `start` on: the keys to hold are this browser's settings, which aren't known before. */
+  /**
+   * The Card drawer opened on a word of the page, as the popup's Add opens it: the word looked up first, so the drawer
+   * has its dictionary form; a word that isn't found opens nothing.
+   */
+  function openDrawer(pointed: Pointed) {
+    void askLookup(pointed.text).then((answer) => {
+      const first = answer.ok ? answer.found[0] : undefined;
+      if (first) options.onAdd(first, pointed);
+    });
+  }
+
+  /** The page's listening, from `start` on: what opens what is this browser's settings, which aren't known before. */
   let page: ReturnType<typeof listenOnPage> | null = null;
 
   async function refresh() {
@@ -94,14 +105,17 @@ export function createListening(options: Options) {
 
   return {
     looker,
-    /** Whether pointing at words works here right now and with which key, and the same in Panki's subtitles. */
+    /** Whether pointing at words works here right now and what opens what, and the same in Panki's subtitles. */
     settings: () => ({ ...here, ...keys() }),
-    /** Panki's own line says where the pointer is when it's over one of its words, so the key pressed there looks it up. */
+    /** Panki's own line says where the pointer is when it's over one of its words, so the key pressed there opens what it's bound to. */
     pointedBy: (...args: Parameters<ReturnType<typeof listenOnPage>["pointedBy"]>) => page?.pointedBy(...args),
     /** Started once this browser's settings are in (`loadLocal`). */
     start() {
       page = listenOnPage(looker, {
-        key: (target) => (options.subtitlesAt?.(target) ? keys().subtitleKey : keys().key),
+        popup: (target) => (options.subtitlesAt?.(target) ? keys().subtitlePopup : keys().popup),
+        // A card's clip in a review: In Panki subtitles' drawer is the video page's line's alone, so a press there stays the review's.
+        drawer: (target) => (options.subtitlesAt?.(target) ? "none" : keys().drawer),
+        openDrawer,
         delay: (target) => (options.subtitlesAt?.(target) ? keys().subtitleDelay : keys().delay),
         on: (target) => (options.subtitlesAt?.(target) ? here.subtitlesOn : here.on),
         whereAt: options.whereAt,

@@ -67,7 +67,7 @@ export const RULE_ACTIONS: Record<RuleActionId, RuleActionEntry> = {
   proofread: { name: "Proofread", subject: "video", caps: [], knobs: [], paid: true, start: NONE },
   // Where the video's own content ends, everyone's (`videoEnd.ts`): a video that has one already isn't run on; a press asks again.
   findVideoEnd: { name: FIND_VIDEO_END, subject: "video", caps: [], knobs: [], paid: true, start: NONE },
-  // Live, the chunks following the viewer, at once; 30 minutes was the admin's length limit to begin with.
+  // Live, the chunks following the viewer, at once, up to 30 minutes for a new rule.
   transcribe: { name: TRANSCRIBE_MODES.live.name, subject: "video", caps: ["minutes"], knobs: [], paid: true, start: { ...NONE, maxMinutes: 30 } },
   // Full, the whole video ordered in the background, once it's been watched 20 s: the same price a minute (the engine's
   // listed $0.22 an hour), the wait about videos clicked and left.
@@ -163,7 +163,7 @@ export const Rule = z.object({
    */
   perRunMicros: Micros.nullable().default(null),
   perDayMicros: Micros.nullable().default(null),
-  /** Videos up to this many minutes: a longer one isn't run on; null is no limit of its own. Transcribing's is held to the admin's length limit whatever it says, a ceiling no rule passes. */
+  /** Videos up to this many minutes: a longer one isn't run on; null is no limit (but `RULE_MINUTES_MAX`). The only cap on a video's length, transcribing's included. */
   maxMinutes: z.number().int().min(1).max(RULE_MINUTES_MAX).nullable().default(null),
   /** At most this many MB a download: one that grows past it is let go; null is no limit. */
   maxMb: z.number().int().min(1).max(RULE_MB_MAX).nullable().default(null),
@@ -190,11 +190,11 @@ export function ruleProblem(rule: Rule): string | null {
 }
 
 /**
- * Whether a video is too long for a rule: past its own minutes, or past the admin's length limit, a ceiling no rule
- * passes. The words for its row ("Longer than 30 min"), or null.
+ * Whether a video is too long for a rule: past its own minutes, the one cap on a video's length, every action's alike
+ * (a rule with none, past `RULE_MINUTES_MAX`). The words for its row ("Longer than 90 min"), or null.
  */
-export function lengthStop(rule: Rule, lengthMs: number, ceilingMinutes: number): string | null {
-  const most = Math.min(rule.maxMinutes ?? ceilingMinutes, ceilingMinutes);
+export function lengthStop(rule: Pick<Rule, "maxMinutes">, lengthMs: number): string | null {
+  const most = rule.maxMinutes ?? RULE_MINUTES_MAX;
   return lengthMs > most * 60_000 ? `Longer than ${most} min` : null;
 }
 

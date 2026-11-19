@@ -41,9 +41,9 @@ type Common<T extends string | number> = {
 type One<T extends string | number> = { value: T; onChange: (value: T) => void };
 /**
  * Several, each ticked on or off where it stands; the list stays open for the next. `summary` is what the button says.
- * With `onOnly`, a plain press switches instead: that choice becomes the only one ticked and the list closes, as a single
- * pick does; Shift with the press (a click, Enter or Space) ticks it on or off beside the others, the list staying open
- * (a conversation's actions).
+ * With `onOnly`, a plain press switches instead and the list closes, as a single pick does: a choice that's off becomes
+ * the only one ticked, one that's ticked is unticked (the others left as they are); Shift with the press (a click, Enter
+ * or Space) ticks it on or off beside the others, the list staying open (a conversation's actions).
  */
 type Many<T extends string | number> = { values: readonly T[]; onToggle: (value: T) => void; onOnly?: (value: T) => void; summary: string };
 type Props<T extends string | number> = Common<T> & (One<T> | Many<T>);
@@ -138,7 +138,9 @@ export function Dropdown<T extends string | number>(props: Props<T>) {
                     if ("values" in props) {
                       if (o.fixed) return;
                       if (props.onOnly && !e.shiftKey) {
-                        props.onOnly(o.id);
+                        // One that's ticked is unticked, the rest left as they are; one that's off becomes the only one.
+                        if (isOn(o.id)) props.onToggle(o.id);
+                        else props.onOnly(o.id);
                         setOpen(false);
                         return;
                       }

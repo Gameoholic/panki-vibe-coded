@@ -5,7 +5,6 @@ import { Button } from "@web/components/Button";
 import { Dropdown } from "@web/components/Dropdown";
 import { Icon } from "@web/components/Icon";
 import { NumberField } from "@web/components/NumberField";
-import { Segmented } from "@web/components/Segmented";
 import { Setting } from "@web/components/Setting";
 import { Swatches } from "@web/components/Swatches";
 import { TextField } from "@web/components/TextField";
@@ -29,10 +28,10 @@ import {
   type Progress,
 } from "../dictionary/store";
 import { HOVER_KEEP } from "../capture/look";
-import { HOVER_DELAY, LOOK_KEYS, hostOf, keyWordOf, permissionsFor, type LookKey, type LookWhere } from "../lookSettings";
+import { BINDINGS, BINDING_NAMES, HOVER_DELAY, hostOf, isHeld, keyWordOf, permissionsFor, type Binding, type LookWhere } from "../lookSettings";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
-import { writeStore, type Stored } from "../storage";
+import { lookByOf, writeStore, type Stored } from "../storage";
 import { Pitch } from "../ui/Lookup";
 import { Rename } from "../ui/Rename";
 import { aboutOf, type About } from "./about";
@@ -606,23 +605,73 @@ const WHERE: { id: LookWhere; label: string }[] = [
   { id: "except", label: "On every site but these" },
   { id: "nowhere", label: "Nowhere" },
 ];
-/** How pointing at a word starts, as a sentence begins: "Hold Shift over", or "Point at" when it's On hover. */
-export const pointWords = (key: LookKey) => (key === "hover" ? "Point at" : `Hold ${keyWordOf(key)} over`);
-/** How a key to hold is used, said under it. */
-const usageWords = (key: LookKey) =>
-  key === "hover" ? `Point at a word to look it up. Press ${HOVER_KEEP} or click the word to keep the pop-up open.` : `Hold ${keyWordOf(key)} and point at a word to look it up. Let go on the word to keep the pop-up open.`;
+/** How opening the pop-up on a word starts, as a sentence begins ("Hold Shift over", "Point at", "Click"); none when nothing opens it. */
+export const pointWords = (binding: Binding): string | null =>
+  binding === "none" ? null : binding === "hover" ? "Point at" : isHeld(binding) ? `Hold ${keyWordOf(binding)} over` : BINDING_NAMES[binding];
+/**
+ * How the pop-up is kept open, said under what opens it where that can't be guessed: a held key, or Hover (where a
+ * click on the word keeps it too, unless that click opens the drawer). A click keeps what it opens; none says nothing.
+ */
+const usageWords = (popup: Binding, drawer: Binding): string | null => {
+  if (popup === "hover") return `Point at a word to look it up. Press ${HOVER_KEEP}${drawer === "click" ? "" : " or click the word"} to keep the pop-up open.`;
+  if (isHeld(popup)) return `Hold ${keyWordOf(popup)} and point at a word to look it up. Let go on the word to keep the pop-up open.`;
+  return null;
+};
+
+/** The two things a gesture on a word opens, as the options page names them. */
+const OPENS = { drawer: "Open the Card drawer", popup: "Open the Word pop-up" } as const;
 
 /**
- * Hover delay, under each Key to hold: how long the pointer rests on a word before On hover opens its pop-up, in ms
- * (`HOVER_DELAY`); greyed while that key isn't On hover, since no other key waits.
+ * What opens the Card drawer and the Word pop-up on a word in one place: a binding each (`Binding`), the one the other
+ * holds greyed in each list, said why, so one gesture opens one of them; with Hover picked, its Hover delay stands
+ * beside it (ms, `HOVER_DELAY`), the place's one, since only one of the two can be Hover.
  */
-function HoverDelayRow({ id, label, value, disabled, onChange }: { id: string; label: string; value: number; disabled: boolean; onChange: (ms: number) => void }) {
+function OpensRows({
+  id,
+  place,
+  drawer,
+  popup,
+  delay,
+  drawerOff,
+  popupOff,
+  popupWhy,
+  onDrawer,
+  onPopup,
+  onDelay,
+}: {
+  id: string;
+  place: string;
+  drawer: Binding;
+  popup: Binding;
+  delay: number;
+  drawerOff: boolean;
+  popupOff: boolean;
+  popupWhy: string | null;
+  onDrawer: (binding: Binding) => void;
+  onPopup: (binding: Binding) => void;
+  onDelay: (ms: number) => void;
+}) {
+  const pick = (which: keyof typeof OPENS, value: Binding, other: Binding, off: boolean, onChange: (binding: Binding) => void) => {
+    const otherName = OPENS[which === "drawer" ? "popup" : "drawer"];
+    const options = BINDINGS.map((binding) => ({
+      id: binding,
+      label: BINDING_NAMES[binding],
+      ...(binding !== "none" && binding === other ? { disabled: true, note: `Used by ${otherName}` } : {}),
+    }));
+    return (
+      <span className="setting-pair">
+        <Dropdown id={`${id}-${which}`} label={`${OPENS[which]} ${place}`} options={options} value={value} disabled={off} onChange={onChange} />
+        {value === "hover" ? (
+          <NumberField id={`${id}-${which}-delay`} label={`Hover delay ${place}`} value={delay} min={0} max={HOVER_DELAY.max} step={HOVER_DELAY.step} suffix="ms" disabled={off} onChange={onDelay} />
+        ) : null}
+      </span>
+    );
+  };
   return (
-    <Setting
-      id={id}
-      label="Hover delay"
-      control={<NumberField id={`${id}-ms`} label={label} value={value} min={0} max={HOVER_DELAY.max} step={HOVER_DELAY.step} suffix="ms" disabled={disabled} onChange={onChange} />}
-    />
+    <>
+      <Setting id={`${id}-drawer`} label={OPENS.drawer} control={pick("drawer", drawer, popup, drawerOff, onDrawer)} />
+      <Setting id={`${id}-popup`} label={OPENS.popup} control={pick("popup", popup, drawer, popupOff, onPopup)} why={popupWhy} />
+    </>
   );
 }
 
@@ -685,6 +734,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   const listed = store.lookWhere === "only" || store.lookWhere === "except";
   // Word pop-up heads the panel; off, every row under it is greyed, as every panel's own switch greys its rows.
   const off = !store.moduleLookup;
+  const opens = lookByOf(store);
   return (
     <section className="panel" aria-labelledby="looking-title">
       <SceneTitle id="popup" titleId="looking-title" store={store} />
@@ -731,38 +781,38 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
             {failure}
           </p>
         ) : null}
-        <Setting
-          id="look-key"
-          label="Key to hold"
-          control={<Segmented idPrefix="look-key" label="Key to hold globally" options={LOOK_KEYS} value={store.lookKey} disabled={off || store.lookWhere === "nowhere"} onChange={(lookKey) => void writeStore({ lookKey }).then(onChanged)} />}
-          why={usageWords(store.lookKey)}
+        {/* Globally, both work only where looking words up does: a page's word is looked up before the drawer opens on it. */}
+        <OpensRows
+          id="look-global"
+          place="globally"
+          drawer={store.drawerBy}
+          popup={opens.popup}
+          delay={store.lookDelayMs}
+          drawerOff={off || store.lookWhere === "nowhere"}
+          popupOff={off || store.lookWhere === "nowhere"}
+          popupWhy={usageWords(opens.popup, store.drawerBy)}
+          onDrawer={(drawerBy) => void writeStore({ drawerBy }).then(onChanged)}
+          onPopup={(lookBy) => void writeStore({ lookBy }).then(onChanged)}
+          onDelay={(lookDelayMs) => void writeStore({ lookDelayMs }).then(onChanged)}
         />
-        <HoverDelayRow id="look-delay" label="Hover delay globally" value={store.lookDelayMs} disabled={off || store.lookWhere === "nowhere" || store.lookKey !== "hover"} onChange={(lookDelayMs) => void writeStore({ lookDelayMs }).then(onChanged)} />
       </div>
-      {/* The same choice again for Panki's subtitles alone; which those are is said under it, since a card's clip in a review is one. */}
+      {/* The same again for Panki's subtitles alone; which those are is said under the pop-up's row, since a card's clip in
+          a review is one. Their drawer is the Panki panel's pick of a word, there with the Word pop-up off too, so only
+          the pop-up's row greys with it. */}
       <div className="seek-group">
         <h3 className="seek-group-title">In Panki subtitles</h3>
-        <Setting
-          id="look-key-subtitles"
-          label="Key to hold"
-          control={
-            <Segmented
-              idPrefix="look-key-subtitles"
-              label="Key to hold in Panki subtitles"
-              options={LOOK_KEYS}
-              value={store.lookKeySubtitles}
-              disabled={off}
-              onChange={(lookKeySubtitles) => void writeStore({ lookKeySubtitles }).then(onChanged)}
-            />
-          }
-          why="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
-        />
-        <HoverDelayRow
-          id="look-delay-subtitles"
-          label="Hover delay in Panki subtitles"
-          value={store.lookDelayMsSubtitles}
-          disabled={off || store.lookKeySubtitles !== "hover"}
-          onChange={(lookDelayMsSubtitles) => void writeStore({ lookDelayMsSubtitles }).then(onChanged)}
+        <OpensRows
+          id="look-subtitles"
+          place="in Panki subtitles"
+          drawer={store.drawerBySubtitles}
+          popup={opens.subtitlePopup}
+          delay={store.lookDelayMsSubtitles}
+          drawerOff={false}
+          popupOff={off}
+          popupWhy="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
+          onDrawer={(drawerBySubtitles) => void writeStore({ drawerBySubtitles }).then(onChanged)}
+          onPopup={(lookBySubtitles) => void writeStore({ lookBySubtitles }).then(onChanged)}
+          onDelay={(lookDelayMsSubtitles) => void writeStore({ lookDelayMsSubtitles }).then(onChanged)}
         />
       </div>
     </section>

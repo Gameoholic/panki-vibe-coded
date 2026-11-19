@@ -576,9 +576,9 @@ export type ComposerProps = {
   /** The conversation's own settings, behind the settings button beside the actions; none, no button. */
   knobs?: ConversationKnobs | null;
   onChange: (value: string) => void;
-  /** Shift with a press on an action: it's ticked on or off beside the others. */
+  /** Shift with a press on an action, or a plain press on one that's ticked: it's ticked on or off beside the others. */
   onToggle: (id: string) => void;
-  /** A plain press on an action: it becomes the only one ticked, through the same state `onToggle` changes. */
+  /** A plain press on an action that's off: it becomes the only one ticked, through the same state `onToggle` changes. */
   onOnly: (id: string) => void;
   onSend: () => void;
   /**
@@ -591,7 +591,7 @@ export type ComposerProps = {
 /**
  * Where a conversation is sent from (Touch up, steered): one rounded box, what's typed growing from one line, and under
  * it inside the box one row, the actions as a dropdown (every action of the place in the registry's order; a press
- * switches to one, Shift with it adds one beside the others), what the message can cost, and Send, round in the accent with its arrow (Stop in its place while a message
+ * switches to one, or unticks one that's ticked, Shift with it adds one beside the others), what the message can cost, and Send, round in the accent with its arrow (Stop in its place while a message
  * the person sent is out, the spark turning there for one they can't stop; the box and the actions staying live for
  * the next one, and Send and Enter going nowhere until the answer is in, nothing queued; Escape stops nothing); the
  * row wraps on a phone, the dropdown first. Enter sends, Shift+Enter is a new line, and

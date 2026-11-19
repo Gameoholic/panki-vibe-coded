@@ -25,7 +25,7 @@ import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { askOpenTypes } from "../messages";
-import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, profileWords, readStore, renameProfile, sameProfile, shortSkipOf, useProfile, writeStore, type Profile, type Stored } from "../storage";
+import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, lookByOf, profileWords, readStore, renameProfile, sameProfile, shortSkipOf, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
 import { deviceTheme } from "../ui/mount";
 import { setVideoTracking, videoTrackingOn } from "../watch/tracking";
@@ -823,7 +823,7 @@ function Options() {
           <div className="options-tab" hidden={tab !== "dictionary"}>
             {/* Word pop-up, the pop-up's layout (which shows the words in the decks marked, as set on the Decks tab), then the dictionaries it reads. */}
             <Looking store={store} onChanged={refresh} />
-            <PopupLayoutPanel kept={store.popupLayout} lookKey={store.lookKey} lookDelay={store.lookDelayMs} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour }) }} onSaved={refresh} />
+            <PopupLayoutPanel kept={store.popupLayout} lookBy={lookByOf(store).popup} lookDelay={store.lookDelayMs} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour }) }} onSaved={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
           </div>

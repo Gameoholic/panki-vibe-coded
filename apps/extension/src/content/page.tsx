@@ -110,7 +110,7 @@ function start() {
   // Pointing at words, where the viewer allows it. The popup's Add opens the drawer on the word, in its sentence.
   const listening: Listening = createListening({
     whereAt: () => ({ of: "page" }),
-    // A card's clip in a Panki review: its subtitles are Panki subtitles, with their own key to hold.
+    // A card's clip in a Panki review: its subtitles are Panki subtitles, the pop-up opening there as it does in them.
     subtitlesAt: (target) => target instanceof Element && target.closest(SUBTITLES_AREA) !== null,
     parent: filling,
     onAdd(found: Found, pointed: Pointed) {

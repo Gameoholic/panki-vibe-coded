@@ -216,7 +216,7 @@ function ExplainScene({ ai, showCostOver }: SceneProps) {
     t.frame(video);
     await t.move([40, 42], 450);
     await t.move(word.current, 550);
-    // Panki subtitles' key to hold is the extension's own, on each computer: Shift, as it begins.
+    // What opens the pop-up in Panki subtitles is the extension's own, on each computer: Hold Shift, as it begins.
     t.hold("Shift");
     await t.wait(250);
     setAt(t.spot(word.current));

@@ -295,7 +295,7 @@ export function useHeardInDecks(lines: readonly TimedLine[] | null, watched: rea
 
 /**
  * Marks the known words in a page's own text, on the browser's highlight layer, by the pages switch (Highlight
- * globally): a site's own captions are a page's text like any other, as they go by Key to hold globally (the subtitles
+ * globally): a site's own captions are a page's text like any other, as they open the Word pop-up as it opens globally (the subtitles
  * switch is Panki's own lines alone). Each line is split by the
  * dictionary once its words are in (asked a few at a time, each line once); until then the browser's own split stands
  * in. The page is read again where it changes, after it settles. A browser without the highlight layer marks nothing.

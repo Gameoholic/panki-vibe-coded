@@ -478,7 +478,7 @@ export const Settings = z.object({
   /**
    * **Learning language** on screen: the language this account learns, its videos transcribed in it and a Panki AI
    * prompt's {Learning language}. Each account's own, nothing Panki-wide; English to begin with. An account from before keeps Japanese, the language every video was transcribed in until
-   * then (migration 29). The key is still `language`, where it was born, as `downloadLimit` and `lesson` are.
+   * then (migration 29). The key is still `language`, where it was born, as `lesson` is.
    */
   language: TranscribeLanguage,
   /**

@@ -16,7 +16,7 @@ import { shownName, type DictionaryRecord } from "../dictionary/format";
 import type { Found } from "../dictionary/found";
 import { lookUp } from "../dictionary/lookup";
 import { listDictionaries } from "../dictionary/store";
-import type { LookKey } from "../lookSettings";
+import type { Binding } from "../lookSettings";
 import { FREQUENCY_OPTIONS, MEANINGS_ABOUT, MEANINGS_NAME, MEANINGS_OPTIONS, PART_ABOUT, PART_NAMES, READING_OPTIONS, SHOWN_OR_HIDDEN, SHOW_OPTIONS, TAG_OPTIONS, isNamedPart } from "../popupKinds";
 import { dictionaryOf, moveBodyPart, popupLayoutOf, withMeanings, type BodyPart, type PartShow, type PopupLayout } from "../popupLayout";
 import { writeStore } from "../storage";
@@ -68,8 +68,8 @@ const isFixed = (part: string): part is Fixed => (FIXED as readonly string[]).in
 type Props = {
   /** The layout as it was last saved; null when it never was. */
   kept: PopupLayout | null;
-  /** The key held to look a word up, as it's set above, and its Hover delay (ms). */
-  lookKey: LookKey;
+  /** What opens the pop-up globally, as it's set above, and its Hover delay (ms). */
+  lookBy: Binding;
   lookDelay: number;
   /** Changes whenever a dictionary is imported, removed, switched or moved on this page: they're read again. */
   dictionariesChanged: number;
@@ -82,12 +82,12 @@ type Props = {
  * The popup's layout, laid out on the popup itself, as a card
  * type's Layout tab is on the card: a word looked up in the dictionaries here, drawn as the popup draws it; a part
  * pressed is picked and its choices stand beside it; what's under the word is moved by its grip; what's hidden waits
- * under the popup. Above it, two sentences to point at with the key held, which open the real popup as it's laid out
+ * under the popup. Above it, two sentences to point at as the pop-up opens globally, which open the real popup as it's laid out
  * now, saved or not, and put the word pointed at on the one being laid out when it closes. Preview uses it as a page would. Saved by
  * Save, beside the words that say whether there's anything to save; leaving the page unsaved asks first, and Ctrl+Z
  * undoes.
  */
-export function PopupLayoutPanel({ kept, lookKey, lookDelay, dictionariesChanged, known, onSaved }: Props) {
+export function PopupLayoutPanel({ kept, lookBy, lookDelay, dictionariesChanged, known, onSaved }: Props) {
   const [dictionaries, setDictionaries] = useState<DictionaryRecord[] | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   useEffect(() => {
@@ -108,7 +108,7 @@ export function PopupLayoutPanel({ kept, lookKey, lookDelay, dictionariesChanged
   return (
     <section className="panel popup-layout" aria-labelledby="popup-layout-title">
       {dictionaries ? (
-        <Editor kept={kept} lookKey={lookKey} lookDelay={lookDelay} dictionaries={dictionaries} known={known} onSaved={onSaved} />
+        <Editor kept={kept} lookBy={lookBy} lookDelay={lookDelay} dictionaries={dictionaries} known={known} onSaved={onSaved} />
       ) : (
         <h2 id="popup-layout-title" className="panel-title">
           Word pop-up layout
@@ -123,7 +123,7 @@ export function PopupLayoutPanel({ kept, lookKey, lookDelay, dictionariesChanged
   );
 }
 
-function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { kept: PopupLayout | null; lookKey: LookKey; lookDelay: number; dictionaries: readonly DictionaryRecord[]; known: Props["known"]; onSaved: () => void }) {
+function Editor({ kept, lookBy, lookDelay, dictionaries, known, onSaved }: { kept: PopupLayout | null; lookBy: Binding; lookDelay: number; dictionaries: readonly DictionaryRecord[]; known: Props["known"]; onSaved: () => void }) {
   const parts = withMeanings(dictionaries);
   const history = useUndoable<PopupLayout>(popupLayoutOf(kept, parts));
   const { change, undo, redo } = history;
@@ -188,8 +188,8 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
   const [live, setLive] = useState<View | null>(null);
   const tryText = useRef<HTMLParagraphElement>(null);
   const over = useRef<HTMLDivElement>(null);
-  const keyNow = useRef(lookKey);
-  keyNow.current = lookKey;
+  const keyNow = useRef(lookBy);
+  keyNow.current = lookBy;
   const delayNow = useRef(lookDelay);
   delayNow.current = lookDelay;
   const looker = useRef<Looker | null>(null);
@@ -210,8 +210,10 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
     }, lookUp, () => over.current?.querySelector(".look")?.getBoundingClientRect() ?? null);
     looker.current = made;
     const page = listenOnPage(made, {
-      // The sentences to try it on are a page's, so they take the key everywhere else takes, On hover and its delay too.
-      key: () => keyNow.current,
+      // The sentences to try it on are a page's, so they open the pop-up as everywhere else does, Hover and its delay too;
+      // the drawer is a page's of its own, none here.
+      popup: () => keyNow.current,
+      drawer: () => "none",
       delay: () => delayNow.current,
       // Tried here whatever the settings say: this page's own sentences.
       on: () => true,
@@ -328,7 +330,7 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
 
   const editing = mode === "edit";
   const first = shown?.found[0];
-  const pointAt = pointWords(lookKey);
+  const pointAt = pointWords(lookBy);
   return (
     <>
       <div className="popup-head">
@@ -347,7 +349,7 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
         <div className="layout-stage">
           {/* Above the popup being laid out, so the sentences stay where they are when it takes another word. */}
           <div className="popup-try">
-            <span className="layout-note">{pointAt} a word to try it</span>
+            {pointAt ? <span className="layout-note">{pointAt} a word to try it</span> : null}
             <p ref={tryText} className="popup-try-text" lang="ja">
               {tryBefore}
               <span style={known.on ? { background: known.tint } : undefined}>
@@ -382,7 +384,7 @@ function Editor({ kept, lookKey, lookDelay, dictionaries, known, onSaved }: { ke
                 />
               </div>
             ) : (
-              <p className="empty">{pointAt} a word above to see the pop-up with it.</p>
+              <p className="empty">{pointAt ? `${pointAt} a word above to see the pop-up with it.` : "No word picked."}</p>
             )}
           </div>
           {!editing ? (

@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts";
 import { DEFAULT_DOWNLOAD_QUALITY, DEFAULT_DOWNLOAD_SPEED, DownloadQuality, DownloadSpeed } from "./download/download";
-import { HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
+import { Binding, HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
@@ -58,15 +58,26 @@ const Stored = z.object({
   // A browser that kept `drawerLayout` (a choice of the drawer's layout) keeps it unread.
   // A browser that kept `clipToWords` (whether a clip's end snapped to the edges of words as it was pulled) keeps it
   // unread: an end stops at sentences (words, on the word's bar), Shift held puts it exactly.
-  /** The key held to look a word up by pointing at it, everywhere but Panki's subtitles: Key to hold globally. */
-  lookKey: LookKey.catch("shift"),
   /**
-   * The key held to look a word up in Panki's subtitles, under the player and over the video, apart from everywhere
-   * else's, so the two can be different keys, On hover among them (holding a key over subtitles while watching gets in
-   * the way). Shift to begin with. (A browser that kept `lookHover`, the switch it once was, switched on reads as On
-   * hover here, `readStore`.)
+   * What opens the Word pop-up on a word (`lookSettings.ts` → `Binding`), everywhere but Panki's subtitles, and in Panki's
+   * subtitles apart, so the two can differ (holding a key over subtitles while watching gets in the way). Null until
+   * it's first set, read until then from the key once held there (`lookKey`, `lookKeySubtitles`; `lookByOf`).
    */
+  lookBy: Binding.nullable().catch(null),
+  lookBySubtitles: Binding.nullable().catch(null),
+  /**
+   * The key once held to look a word up, globally and in Panki's subtitles, Shift to begin with: read only into
+   * `lookBy` and `lookBySubtitles` while those are unset, never written again. (A browser that kept `lookHover`, the
+   * switch before that, switched on reads as On hover in Panki's subtitles, `readStore`.)
+   */
+  lookKey: LookKey.catch("shift"),
   lookKeySubtitles: LookKey.catch("shift"),
+  /**
+   * What opens the Card drawer on a word, globally (None to begin with: a page's clicks are its own) and in Panki's
+   * subtitles under the player and over the video (Click, the press that has always picked a word there).
+   */
+  drawerBy: Binding.catch("none"),
+  drawerBySubtitles: Binding.catch("click"),
   /** How long the pointer rests on a word before On hover opens its pop-up, ms: Hover delay globally, and in Panki subtitles. */
   lookDelayMs: HoverDelay.catch(HOVER_DELAY.default),
   lookDelayMsSubtitles: HoverDelay.catch(HOVER_DELAY.default),
@@ -314,8 +325,9 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   modules: modulesOf,
   known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, byStage: store.knownByStage, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
   look: (store) => ({
-    key: store.lookKey,
-    subtitleKey: store.lookKeySubtitles,
+    ...lookByOf(store),
+    drawer: store.drawerBy,
+    subtitleDrawer: store.drawerBySubtitles,
     delay: store.lookDelayMs,
     subtitleDelay: store.lookDelayMsSubtitles,
     where: store.lookWhere,
@@ -336,6 +348,12 @@ export const localOf = (store: Stored): Local => ({
   look: LOCAL.look(store),
   tracking: LOCAL.tracking(store),
   drawer: LOCAL.drawer(store),
+});
+
+/** What opens the Word pop-up, globally and in Panki's subtitles: as set once it has been, and before that the key once held there. */
+export const lookByOf = (store: Pick<Stored, "lookBy" | "lookBySubtitles" | "lookKey" | "lookKeySubtitles">): { popup: Binding; subtitlePopup: Binding } => ({
+  popup: store.lookBy ?? store.lookKey,
+  subtitlePopup: store.lookBySubtitles ?? store.lookKeySubtitles,
 });
 
 /** What the browser keeps, read as the store: everything kept, or what's given in its place (`kept`, the store as it stood before a change). */

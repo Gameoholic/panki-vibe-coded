@@ -39,7 +39,7 @@ import { createSilentPlayer, type SilentPlayer, type SilentReport } from "./sile
  *   none start for it (`fallBack`).
  *
  * Neither starts by itself but by its rule, the same in every browser: once the video's length is known, Panki is
- * asked whether each rule runs on it (its caps, the video's length, the admin's length limit, the time watched, all
+ * asked whether each rule runs on it (its caps, the video's length against its own minutes, the time watched, all
  * held there), once a visit, or again once the video has been watched as much more as Panki said to wait; a stop is
  * said in the Log. With the engine not the source picked (this browser's pick, `subtitles.ts`; the site's captions or
  * None) nothing is transcribed at all. A press in the menu is never held to a rule or a limit. Every video
@@ -503,7 +503,7 @@ export function createTranscriber() {
   /**
    * Panki asked whether a way's rule runs on this video, as soon as it would run something by itself: the length known,
    * the engine picked with a key, the rule on, nothing blocking it and some of the video not transcribed (and for the
-   * whole video, none ordered). Panki holds every cap (the rule's minutes, the admin's length limit, the day's dollars,
+   * whole video, none ordered). Panki holds every cap (the rule's minutes, the day's dollars,
    * the time watched against this visit's `watched`) and keeps the go or the stop as the rule's run, so a video that
    * would run nothing is never asked about. Once a visit, but for a not yet (`waitMs`): asked again once the video has
    * been watched that much more. Until the answer, Live is loading; a stop is said in the Log, and a press still works.
@@ -991,7 +991,7 @@ export function createTranscriber() {
     },
     /**
      * Start transcribing pressed: Live, chunks from where the viewer is, the language never asked, never held to an
-     * automation or the length limit. A run the browser blocked is tried again.
+     * automation's limits. A run the browser blocked is tried again.
      */
     start(video: HTMLVideoElement) {
       const id = videoId;
@@ -1012,7 +1012,7 @@ export function createTranscriber() {
     /**
      * Transcribe the entire video pressed: Full, the whole video downloaded and transcribed on Panki, chunks running or not,
      * even over words an earlier one left or after one failed on this visit (a press is what Try again is), never held
-     * to an automation or the length limit. Not while one is on its way or under way.
+     * to an automation's limits. Not while one is on its way or under way.
      */
     orderWhole(video: HTMLVideoElement) {
       const id = videoId;

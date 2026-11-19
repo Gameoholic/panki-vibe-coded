@@ -5,6 +5,7 @@ import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid,
 import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useHeardInDecks, useKnown, useKnownMoments, cameFromHere } from "../capture/known";
 import { createListening } from "../capture/listening";
 import { pointWith, type Pointed } from "../capture/look";
+import { clickOf } from "../lookSettings";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
 import { createReplay } from "../capture/replay";
 import { sentenceAround, sentencesIn, takeSelection, type Taken } from "../capture/selection";
@@ -1869,28 +1870,54 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
       where: { of: "line", lineId: place.lineId, offset: place.offset, length: token.end - token.start },
     };
   };
+  /** The Card drawer opened on word `i` alone, as a pick of it: by a key held or a rest bound to the drawer. */
+  const takeWord = (i: number) => {
+    const own = charsOf(tokens, [i, i]);
+    if (own) onTake({ from: at + own.from, to: at + own.to });
+  };
   const look: LineLook = {
     move(i, button, e) {
-      // Panki's subtitles, under the player and over the video, take a key of their own (`lookKeySubtitles`), On hover among them.
-      const { subtitlesOn, subtitleKey, subtitleDelay } = listening.settings();
-      if (e.pointerType !== "mouse" || !subtitlesOn) return;
+      // Panki's subtitles, under the player and over the video, take what opens what of their own (`lookBySubtitles`,
+      // `drawerBySubtitles`). The drawer opens whether or not the Word pop-up is on.
+      const { subtitlesOn, subtitlePopup, subtitleDrawer, subtitleDelay } = listening.settings();
+      if (e.pointerType !== "mouse") return;
       const pointed = i !== null && button ? pointedAt(i, button) : null;
-      listening.pointedBy(() => pointed, subtitleKey, subtitleDelay);
-      pointWith(listening.looker, subtitleKey, subtitleDelay, e, pointed, { x: e.clientX, y: e.clientY });
+      const popup = subtitlesOn ? subtitlePopup : "none";
+      listening.pointedBy(
+        () => pointed,
+        popup,
+        subtitleDrawer,
+        subtitleDelay,
+        () => {
+          if (i !== null) takeWord(i);
+        },
+        e,
+      );
+      if (subtitlesOn) pointWith(listening.looker, popup, subtitleDelay, e, pointed, { x: e.clientX, y: e.clientY });
     },
-    press(i) {
+    press(i, button, e) {
+      const { subtitlesOn, subtitlePopup, subtitleDrawer } = listening.settings();
       const view = listening.looker.view();
-      // One opened by hover leaves a press as it always was, a pick: it's there whatever the pointer is on.
-      if (!view || view.hovered) return false;
-      const token = tokens[i];
-      const place = token ? placeOf(at + token.start) : null;
-      // A press on the word whose popup is open keeps the popup open; anywhere else it's a pick, and the popup goes.
-      if (!view.locked && place && view.pointed.id === `line:${place.lineId}:${place.offset}`) {
+      const gesture = clickOf(e);
+      const pointed = pointedAt(i, button);
+      const onItsWord = view !== null && pointed !== null && view.pointed.id === pointed.id;
+      const toDrawer = gesture !== null && gesture === subtitleDrawer;
+      // A press on the word whose popup a held key opened keeps the popup open; one kept, or opened by hover, gives way
+      // to the drawer's click, the hover's staying (it's there whatever the pointer is on).
+      if (onItsWord && !(toDrawer && (view.hovered || view.locked))) {
         listening.looker.lock();
         return true;
       }
+      if (toDrawer) {
+        if (view && !view.hovered) listening.looker.close();
+        return false;
+      }
+      if (gesture !== null && gesture === subtitlePopup && subtitlesOn && pointed) {
+        listening.looker.press(pointed);
+        return true;
+      }
       listening.looker.close();
-      return false;
+      return true;
     },
   };
   const line = (
@@ -3413,7 +3440,7 @@ function begin() {
   listening.start();
   // Words already in the cards: Panki's own lines mark them themselves (`Row`), by Highlight in Panki subtitles; the
   // site's own text, its captions among it, is marked on the page's highlight layer by Highlight globally, as its
-  // captions go by Key to hold globally.
+  // captions open the Word pop-up as it opens globally.
   startKnown();
   markKnownOnPage();
   // Downloads asked for anywhere run on whichever page of the site takes them up, this one among them.
