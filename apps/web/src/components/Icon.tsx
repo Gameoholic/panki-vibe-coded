@@ -49,6 +49,8 @@ const ICONS = {
   /** Not met, beside `check`'s met (a streak's condition): a state, never a button; closing is `close`. */
   cross: ["M7 7l10 10", "M17 7L7 17"],
   lock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 8 0v3"],
+  /** `lock` with its shackle open: a tile's window that can be locked (the home, while arranging). */
+  unlock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 7.7-1.5"],
   edit: ["M4 20h4L19 9l-4-4L4 16z", "M13 7l4 4"],
   trash: ["M4 7h16", "M9 7V4h6v3", "M6 7l1 13h10l1-13", "M10 11v6", "M14 11v6"],
   play: ["M8 5l11 7-11 7z"],

@@ -127,7 +127,7 @@ Words, registries and magnitudes the web keeps in one file each, so a retune is 
 | cardSort | `cardSort.ts` | The ways a deck's cards can be ordered, one entry each, and this device's pick (`CARD_SORTS`, `sortCards`, `readCardSort`). A new way is one entry. |
 | fieldKinds | `fieldKinds.ts` | The kinds a field can be in words (`FIELD_KINDS`, `FIELD_KIND_OPTIONS`, `kindClass`), and what a value's file is (`fileKindOf`). |
 | keys | `keys.ts` | The review's and the players' keys on this device, their defaults, and what a press is (`DEFAULT_KEYS`, `useKeyBinds`, `keyOf`, `pressed`, `heard`). |
-| layout | `layout.ts` | The home board as this device has it: doors and tiles in one order, and those put away, a streak's tile among them (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`, `fitStreaks`). |
+| layout | `layout.ts` | The home board as this device has it: doors and tiles in one order, copies and locks, and those put away (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`, `fitStreaks`, `copyOf`). |
 | layoutKinds | `layoutKinds.ts` | A card layout's choices in words: show, size, tone, column, look, play, blurred front, corner marks (`SHOW_OPTIONS`, `BLUR_OPTIONS`, `PLAY_OPTIONS`, `LOOK_OPTIONS`, `CORNER_OPTIONS`). |
 | ledger | `ledger.ts` | The events ledger's end in the browser: an event recorded, batched, and sent as the page is left (`ledger`). |
 | palette | `palette.ts` | The palette colours are picked from, each by name, the `--mark-*` tokens (`PALETTE`, `PaletteColour`). |

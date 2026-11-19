@@ -1390,6 +1390,7 @@ export function WindowPick({
   way,
   win,
   frame,
+  locked = false,
   onWindow,
   onFrame,
 }: {
@@ -1400,6 +1401,8 @@ export function WindowPick({
   way: FrameWay;
   win: WindowId;
   frame: StatFrame | null;
+  /** Locked (a tile on the home, outside arranging): the window shown with a lock before it, its dropdown not to be opened. */
+  locked?: boolean;
   onWindow: (win: WindowId) => void;
   onFrame: (frame: StatFrame) => void;
 }) {
@@ -1414,12 +1417,14 @@ export function WindowPick({
   ];
   return (
     <>
-      <span ref={at} className="w-window">
+      <span ref={at} className={`w-window ${locked ? "is-locked" : ""}`.trim()}>
+        {locked ? <Icon name="lock" className="w-window-lock" /> : null}
         <Dropdown
           id={`${id}-window`}
-          label={`${name}: window`}
+          label={locked ? `${name}: window, locked` : `${name}: window`}
           size="sm"
           anchored
+          disabled={locked}
           options={options}
           value={win}
           onChange={(next) => {
@@ -1469,6 +1474,15 @@ type TileProps = {
    * ahead (a review's end, where today was just done). Read by the entries that draw `Columns`; none for the largest.
    */
   capAt?: number;
+  /**
+   * A copy's own id on the home (`layout.ts` → `TileCopyId`): its window, view and measure are kept by it (`tilePicks.ts`),
+   * and its ids and remembered height go by it, so the copy and the tile it was copied from never share a pick.
+   */
+  copyId?: string;
+  /** Its window can't be changed just now (locked on the home, outside arranging): the dropdown shown, not to be opened. */
+  locked?: boolean;
+  /** The board's controls for arranging it, at its head after the window (Lock, Duplicate). */
+  editTools?: ReactNode;
   overlay?: ReactNode;
   className?: string;
   style?: CSSProperties | undefined;
@@ -1480,15 +1494,15 @@ type TileProps = {
  * before; the views of its breakdown; the chart, what's under the pointer said in the foot line; one line of fact; the
  * one empty line. The window and the view are this device's (`tilePicks.ts`), unless its window is `fixed`.
  */
-export function Tile({ entry, stats, ctx, fixed, capAt, overlay, className, style }: TileProps) {
+export function Tile({ entry, stats, ctx, fixed, capAt, copyId, locked = false, editTools, overlay, className, style }: TileProps) {
   // Every tile with a time frame takes a custom one; one that looks ahead counts it from today on.
   const framed = entry.windows !== undefined && fixed === undefined;
   const way: FrameWay = entry.ahead ? "next" : "last";
-  const id = fixed === undefined ? entry.id : `${entry.id}-${fixed}`;
+  const id = fixed !== undefined ? `${entry.id}-${fixed}` : (copyId ?? entry.id);
   // A fixed window's tile reads nothing this device picked and keeps nothing.
-  const [picked] = useState<TilePick>(() => (fixed === undefined ? readTilePick(entry.id) : {}));
+  const [picked] = useState<TilePick>(() => (fixed === undefined ? readTilePick(id) : {}));
   const keep = (change: Parameters<typeof writeTilePick>[1]) => {
-    if (fixed === undefined) writeTilePick(entry.id, change);
+    if (fixed === undefined) writeTilePick(id, change);
   };
   const [frame, setFrame] = useState<StatFrame | null>(() => (framed ? (picked.frame ?? null) : null));
   const [win, setWin] = useState<WindowId | null>(() => {
@@ -1531,16 +1545,17 @@ export function Tile({ entry, stats, ctx, fixed, capAt, overlay, className, styl
       tools={
         fixed !== undefined ? (
           <span className="w-window-fixed">{windowLabel(fixed, way)}</span>
-        ) : entry.windows || more ? (
+        ) : entry.windows || more || editTools ? (
           <>
             {entry.windows && win ? (
               <WindowPick
-                tileId={entry.id}
+                tileId={id}
                 name={entry.name}
                 offered={windowsOf(entry)}
                 way={way}
                 win={win}
                 frame={frame}
+                locked={locked}
                 onWindow={(next) => {
                   setWin(next);
                   setAt(null);
@@ -1551,6 +1566,7 @@ export function Tile({ entry, stats, ctx, fixed, capAt, overlay, className, styl
                 }}
               />
             ) : null}
+            {editTools}
             {more ? <MoreButton open={isOpen} onToggle={() => setOpen(!open)} /> : null}
           </>
         ) : null

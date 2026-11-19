@@ -7430,6 +7430,18 @@ mark.sub-blur {
 .w-tools > .quiet-icon > .btn-icon {
   height: 26px;
 }
+/* A tile whose window is locked on the home (`layout.ts` → `locked`) has a small lock before its dropdown, which can't be
+   opened until it's unlocked while arranging. */
+.w-window.is-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.w-window-lock {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+}
 /* A tile whose window is fixed (`Tile`'s `fixed`) says it in quiet words where the dropdown would be. */
 .w-window-fixed {
   padding-right: 4px;

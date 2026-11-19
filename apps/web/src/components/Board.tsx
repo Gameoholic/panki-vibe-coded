@@ -1,13 +1,15 @@
 /** @panki The board: the home's doors and tiles, and every tile on Stats, held to arrange (`Board`). Never a second way of arranging. */
 import { useEffect, type ReactNode } from "react";
 import { streakNameOf, type Settings, type Stats } from "@panki/contracts";
+import { QuietIconButton } from "./AiRun";
 import { Button } from "./Button";
 import { Door, type DoorSpec } from "./Door";
 import { Icon } from "./Icon";
 import { rememberShape, shapeOf } from "../skeletonMemory";
 import { useGridDrag } from "../hooks/useGridDrag";
-import { isDoorId, isStreakTile, type BoardItemId, type BoardLayout, type TileItemId } from "../layout";
-import { NewStreakTile, StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext } from "../widgets";
+import { copiedOf, copyOf, isDoorId, isStreakTile, isTileCopy, type BoardItemId, type BoardLayout, type TileCopyId, type TileItemId } from "../layout";
+import { copyTilePick, forgetTilePick } from "../tilePicks";
+import { NewStreakTile, StreakTile, Tile, WIDGETS, streakIdOfTile, streakTileId, widgetOf, type WidgetContext, type WidgetId } from "../widgets";
 
 /** What makes a board the home's: its doors, its layout on this device, and the arranging, which the home owns so its header can end it. */
 type HomeBoard = {
@@ -35,7 +37,7 @@ const HOLD_WHILE_ARRANGING = 120;
 /** How many streak tiles this device last drew, for the shells while the settings load. */
 const STREAK_TILES_SHAPE = "tiles:streaks";
 /** An id read off the DOM, back as what it names: the doors, the registry and the streaks are the only lists. */
-const itemOf = (id: string): BoardItemId | null => (isDoorId(id) || isStreakTile(id) ? id : (widgetOf(id)?.id ?? null));
+const itemOf = (id: string): BoardItemId | null => (isDoorId(id) || isStreakTile(id) || isTileCopy(id) ? id : (widgetOf(id)?.id ?? null));
 
 /** The two change places; everything else stays where it is. */
 function swap<T>(list: readonly T[], a: T, b: T): T[] {
@@ -61,7 +63,10 @@ function tileName(id: TileItemId, settings: Settings | null): string | null {
  * Streaks screen Today, every streak's and the dashed one that makes a new one. On the home it is the
  * doors and the tiles this device was set up with, arranged by hand: a still hold on anything starts the arranging; from then a tile or a door is carried under the pointer
  * and let go on another to trade places with it, a × puts a tile away, the dashed tile at the end brings one back,
- * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on. Streaks Off takes every
+ * and it ends only on purpose, with the header's Done or Escape. Nothing shakes while it's on. A tile of the registry's
+ * has Duplicate at its head while arranging, a copy of it standing right after it with its window, view and measure, a
+ * tile of its own from then on (a copy's × takes it off for good); a tile with a window has Lock, after which its window
+ * can't be changed until it's unlocked while arranging. Streaks Off takes every
  * streak's tile off the home, and greys them on the Streaks screen; Today stays, without its streaks.
  */
 export function Board({ stats, ctx, stale = false, home, streaks = false }: Props) {
@@ -70,13 +75,34 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
   const settings = ctx?.settings ?? null;
   const streaksOn = settings?.streaksOn ?? true;
 
+  /** A tile put away; a copy is taken off for good, its picks with it. */
   function hide(id: TileItemId) {
     if (!home) return;
-    home.onLayout({ order: home.layout.order.filter((x) => x !== id), hidden: [...home.layout.hidden, id] });
+    const { layout } = home;
+    if (isTileCopy(id)) {
+      home.onLayout({ ...layout, order: layout.order.filter((x) => x !== id), locked: layout.locked.filter((x) => x !== id) });
+      forgetTilePick(id);
+      return;
+    }
+    home.onLayout({ ...layout, order: layout.order.filter((x) => x !== id), hidden: [...layout.hidden, id] });
   }
   function show(id: TileItemId) {
     if (!home) return;
-    home.onLayout({ order: [...home.layout.order.filter((x) => x !== id), id], hidden: home.layout.hidden.filter((x) => x !== id) });
+    home.onLayout({ ...home.layout, order: [...home.layout.order.filter((x) => x !== id), id], hidden: home.layout.hidden.filter((x) => x !== id) });
+  }
+  /** A copy of a tile, right after it, starting from what it has picked; unlocked, to be set apart from it. */
+  function duplicate(id: WidgetId | TileCopyId) {
+    if (!home) return;
+    const { layout } = home;
+    const copy = copyOf(id);
+    copyTilePick(id, copy);
+    const at = layout.order.indexOf(id);
+    home.onLayout({ ...layout, order: at < 0 ? [...layout.order, copy] : [...layout.order.slice(0, at + 1), copy, ...layout.order.slice(at + 1)] });
+  }
+  function toggleLock(id: TileItemId) {
+    if (!home) return;
+    const { layout } = home;
+    home.onLayout({ ...layout, locked: layout.locked.includes(id) ? layout.locked.filter((x) => x !== id) : [...layout.locked, id] });
   }
   /** What letting one thing go over another makes of the layout: the two change places. Null when either isn't of the board. */
   function dropped(from: string, to: string): BoardLayout | null {
@@ -126,10 +152,21 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
 
   const overlayOf = (id: TileItemId, name: string) =>
     arranging ? (
-      <Button className="btn-icon tile-x" aria-label={`Hide ${name}`} data-no-drag onClick={() => hide(id)}>
+      <Button className="btn-icon tile-x" aria-label={`${isTileCopy(id) ? "Remove" : "Hide"} ${name}`} data-no-drag onClick={() => hide(id)}>
         <Icon name="close" />
       </Button>
     ) : undefined;
+  /** A tile's own controls for arranging, at its head while the board is being arranged: Lock where it has a window, Duplicate. */
+  const editToolsOf = (id: WidgetId | TileCopyId, windowed: boolean): ReactNode => {
+    if (!arranging || !home) return undefined;
+    const locked = home.layout.locked.includes(id);
+    return (
+      <>
+        {windowed ? <QuietIconButton className="tile-lock" icon={locked ? "lock" : "unlock"} words={locked ? "Unlock the time frame" : "Lock the time frame"} open={false} onClick={() => toggleLock(id)} /> : null}
+        <QuietIconButton className="tile-copy" icon="copy" words="Duplicate" open={false} onClick={() => duplicate(id)} />
+      </>
+    );
+  };
 
   /** A streak's tile while the streak is there (on the home, while Streaks is on too); on Stats, its shell while the settings load. */
   const streakTile = (id: TileItemId, streakId: string | null): ReactNode => {
@@ -178,9 +215,26 @@ export function Board({ stats, ctx, stale = false, home, streaks = false }: Prop
           return spec ? door(spec) : null;
         }
         if (isStreakTile(id)) return streakTile(id, streakIdOfTile(id));
-        const entry = widgetOf(id);
+        const copied = copiedOf(id);
+        const entry = widgetOf(copied ?? id);
         if (!entry) return null;
-        return <Tile key={entry.id} entry={entry} stats={stats} ctx={ctx} className={drag.tileClass(entry.id)} style={drag.tileStyle(entry.id)} overlay={overlayOf(entry.id, entry.name)} />;
+        const tileId = copied === null ? entry.id : (id as TileCopyId);
+        // Locked on the home: its window stays as it is but while arranging.
+        const locked = home !== undefined && !arranging && home.layout.locked.includes(tileId);
+        return (
+          <Tile
+            key={tileId}
+            entry={entry}
+            stats={stats}
+            ctx={ctx}
+            {...(copied === null ? {} : { copyId: tileId })}
+            locked={locked}
+            editTools={editToolsOf(tileId, entry.windows !== undefined)}
+            className={drag.tileClass(tileId)}
+            style={drag.tileStyle(tileId)}
+            overlay={overlayOf(tileId, entry.name)}
+          />
+        );
       })}
       {/* Where a tile put away comes back from. */}
       {arranging ? (

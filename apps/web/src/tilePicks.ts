@@ -1,10 +1,10 @@
-/** @panki A tile's window, custom frame, view and measure as this device last picked them, per tile (`readTilePick`, `writeTilePick`, `TilePick`). */
+/** @panki A tile's window, custom frame, view and measure as this device last picked them, per tile, a copy its own (`readTilePick`, `writeTilePick`, `copyTilePick`, `forgetTilePick`, `TilePick`). */
 import { CALENDAR_WINDOWS, STAT_WINDOWS, StatFrame, type WindowId } from "@panki/contracts";
 import { ledger } from "./ledger";
 
 /**
  * Kept on this device for every tile, as a deck's sort is: how the numbers are read is the device's, not the account's,
- * and the same tile on the home and on Stats shares its pick. A window is one of `STAT_WINDOWS` or `custom`, the frame
+ * and the same tile on the home and on Stats shares its pick, a copy of it on the home keeping its own by its id. A window is one of `STAT_WINDOWS` or `custom`, the frame
  * kept beside it as an amount and a unit (Custom…, "3 w"); a streak's tile keeps the stretch its Show more draws as
  * `span` instead. Read defensively: a window or a view the tile doesn't offer
  * (any more), or `custom` with no frame that reads, is its default, which the tile decides. Every pick is a `tile` row
@@ -52,10 +52,32 @@ export function writeTilePick(
 ) {
   const all = readAll();
   all[id] = { ...all[id], ...change };
+  writeAll(all);
+  ledger.record("tile", { data: { id, ...change } });
+}
+
+function writeAll(all: Record<string, TilePick>) {
   try {
     localStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     // Storage full or switched off: the tile keeps its pick for this visit and starts from its default next time.
   }
-  ledger.record("tile", { data: { id, ...change } });
+}
+
+/** A copy of a tile starts from what the tile has picked (`layout.ts` → `copyOf`), kept as its own from then on. */
+export function copyTilePick(from: string, to: string) {
+  const all = readAll();
+  const picked = all[from];
+  if (!picked) return;
+  all[to] = { ...picked };
+  writeAll(all);
+  ledger.record("tile", { data: { id: to, ...picked } });
+}
+
+/** A copy taken off the home takes its picks with it. */
+export function forgetTilePick(id: string) {
+  const all = readAll();
+  if (!(id in all)) return;
+  delete all[id];
+  writeAll(all);
 }

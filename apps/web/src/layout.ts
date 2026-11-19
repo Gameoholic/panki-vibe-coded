@@ -1,4 +1,4 @@
-/** @panki The home board as this device has it: doors and tiles in one order, and those put away, a streak's tile among them (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`, `fitStreaks`). */
+/** @panki The home board as this device has it: doors and tiles in one order, copies and locks, and those put away (`DOOR_IDS`, `BoardLayout`, `readLayout`, `writeLayout`, `fitStreaks`, `copyOf`). */
 import { ledger } from "./ledger";
 import { STREAK_TILE, WIDGETS, streakTileId, widgetOf, type WidgetId } from "./widgets";
 
@@ -11,13 +11,33 @@ export const DOOR_IDS = ["door-review", "door-decks", "door-add", "door-types"] 
 export type DoorId = (typeof DOOR_IDS)[number];
 /** A streak's tile (`streakTileId`): one per streak, the streaks being the account's. */
 export type StreakTileId = `${typeof STREAK_TILE}${string}`;
-/** A tile on the home: one of the registry's, or a streak's. */
-export type TileItemId = WidgetId | StreakTileId;
+/** What stands between a copy's tile and its own part (`TileCopyId`). */
+const COPY_MARK = "~";
+/**
+ * A copy of one of the registry's tiles on the home: the tile's id, `~`, and an id of its own made as it's copied, so
+ * the same tile stands twice or more, each with its own place, window, view and measure (its picks kept by this id).
+ */
+export type TileCopyId = `${WidgetId}${typeof COPY_MARK}${string}`;
+/** A tile on the home: one of the registry's, a copy of one, or a streak's. */
+export type TileItemId = WidgetId | TileCopyId | StreakTileId;
 /** What sits on the home's board: a door or a tile. */
 export type BoardItemId = DoorId | TileItemId;
 
 export const isDoorId = (x: unknown): x is DoorId => typeof x === "string" && (DOOR_IDS as readonly string[]).includes(x);
 export const isStreakTile = (x: unknown): x is StreakTileId => typeof x === "string" && x.startsWith(STREAK_TILE) && x.length > STREAK_TILE.length;
+/** The registry's tile a copy is of; null for anything that isn't a copy. */
+export function copiedOf(x: unknown): WidgetId | null {
+  if (typeof x !== "string" || isStreakTile(x)) return null;
+  const at = x.indexOf(COPY_MARK);
+  if (at <= 0 || at === x.length - 1) return null;
+  const entry = widgetOf(x.slice(0, at));
+  return entry?.home === true ? entry.id : null;
+}
+export const isTileCopy = (x: unknown): x is TileCopyId => copiedOf(x) !== null;
+/** A new copy of a tile (or of a copy: of the tile it's a copy of), its id never seen before. */
+export function copyOf(id: WidgetId | TileCopyId): TileCopyId {
+  return `${copiedOf(id) ?? (id as WidgetId)}${COPY_MARK}${crypto.randomUUID()}`;
+}
 
 /**
  * How the home is laid out on this device: the doors and the tiles in one order (a door is moved like any tile), and
@@ -25,11 +45,15 @@ export const isStreakTile = (x: unknown): x is StreakTileId => typeof x === "str
  * differently on purpose. Read defensively: a missing or broken value is the default, an id the registry no longer
  * has is dropped, a door not placed yet stands after the door before it, and a widget the registry gained since is put away
  * rather than let onto the home uninvited. A streak's tile is kept as it was stored until the settings say which
- * streaks there are (`fitStreaks`). Every change is a `layout` row in the ledger.
+ * streaks there are (`fitStreaks`). A copy of a tile (`TileCopyId`) stands in the order like any tile; taken off, it's
+ * gone, never put away. `locked` are the tiles whose window can't be changed but while arranging (a copy among them),
+ * none for a layout kept before there were locks, which reads as it always did. Every change is a `layout` row in the
+ * ledger.
  */
 export type BoardLayout = {
   order: BoardItemId[];
   hidden: TileItemId[];
+  locked: TileItemId[];
 };
 
 /**
@@ -47,11 +71,13 @@ const KEY = "panki.board.hold";
 const FOLDED: Readonly<Record<string, WidgetId>> = { days: "heat", "watch-time": "watched", status: "today" };
 
 const isHomeId = (x: unknown): x is WidgetId => typeof x === "string" && widgetOf(x)?.home === true;
-/** A tile the home keeps: one of the registry's it offers, a streak's, or the Streak tile from before. */
-const isTileItem = (x: unknown): x is TileItemId => isHomeId(x) || isStreakTile(x) || x === "streak";
+/** A tile the home keeps: one of the registry's it offers, a copy of one, a streak's, or the Streak tile from before. */
+const isTileItem = (x: unknown): x is TileItemId => isHomeId(x) || isTileCopy(x) || isStreakTile(x) || x === "streak";
+/** What's put away: a tile, never a copy, which is gone once taken off. */
+const isAwayItem = (x: unknown): x is TileItemId => isTileItem(x) && !isTileCopy(x);
 
-/** Whatever was stored, settled against the registry: ids it knows, each once, the rest put away. */
-function settle(order: unknown, hidden: unknown): BoardLayout {
+/** Whatever was stored, settled against the registry: ids it knows, each once, the rest put away; locks on tiles it holds. */
+function settle(order: unknown, hidden: unknown, locked: unknown = []): BoardLayout {
   const seen = new Set<string>();
   const pick = <T extends BoardItemId>(list: unknown, ok: (x: unknown) => x is T): T[] => {
     if (!Array.isArray(list)) return [];
@@ -73,9 +99,11 @@ function settle(order: unknown, hidden: unknown): BoardLayout {
     picked.splice(prev === undefined ? 0 : picked.indexOf(prev) + 1, 0, door);
     seen.add(door);
   });
-  const away = pick<TileItemId>(hidden, isTileItem);
+  const away = pick<TileItemId>(hidden, isAwayItem);
   for (const w of WIDGETS) if (w.home && !seen.has(w.id)) away.push(w.id);
-  return { order: picked, hidden: away };
+  const held = new Set<string>([...picked, ...away]);
+  const locks = Array.isArray(locked) ? [...new Set(locked)].filter((x): x is TileItemId => isTileItem(x) && held.has(x)) : [];
+  return { order: picked, hidden: away, locked: locks };
 }
 
 /**
@@ -113,7 +141,7 @@ function readStored(): BoardLayout {
     if (raw === null) return fallback();
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return fallback();
-    return settle("order" in parsed ? parsed.order : undefined, "hidden" in parsed ? parsed.hidden : undefined);
+    return settle("order" in parsed ? parsed.order : undefined, "hidden" in parsed ? parsed.hidden : undefined, "locked" in parsed ? parsed.locked : undefined);
   } catch {
     return fallback();
   }
@@ -132,6 +160,7 @@ export function readLayout(): BoardLayout {
   const next: BoardLayout = {
     order: [...order.slice(0, lastDoor + 1), ...placed(true), ...order.slice(lastDoor + 1), ...placed(false)],
     hidden: layout.hidden.filter((id) => !dueIds.includes(id)),
+    locked: layout.locked,
   };
   writePutOut([...done, ...dueIds]);
   writeLayout(next);
@@ -161,8 +190,13 @@ export function fitStreaks(layout: BoardLayout, streakIds: readonly string[]): B
   const due = tiles.filter((id) => !done.includes(id) && !order.includes(id) && !hidden.includes(id));
   const marked = tiles.filter((id) => !done.includes(id));
   if (marked.length > 0) writePutOut([...done, ...marked]);
-  const next: BoardLayout = { order: [...order, ...due], hidden };
-  const same = next.order.length === layout.order.length && next.hidden.length === layout.hidden.length && next.order.every((x, i) => x === layout.order[i]) && next.hidden.every((x, i) => x === layout.hidden[i]);
+  const next: BoardLayout = { order: [...order, ...due], hidden, locked: layout.locked.filter((id) => !isStreakTile(id) || tiles.includes(id)) };
+  const same =
+    next.order.length === layout.order.length &&
+    next.hidden.length === layout.hidden.length &&
+    next.locked.length === layout.locked.length &&
+    next.order.every((x, i) => x === layout.order[i]) &&
+    next.hidden.every((x, i) => x === layout.hidden[i]);
   return same ? null : next;
 }
 
@@ -172,5 +206,5 @@ export function writeLayout(layout: BoardLayout) {
   } catch {
     // Storage full or switched off: the home keeps its layout for this visit and starts over next time.
   }
-  ledger.record("layout", { data: { order: layout.order, hidden: layout.hidden } });
+  ledger.record("layout", { data: { order: layout.order, hidden: layout.hidden, locked: layout.locked } });
 }
