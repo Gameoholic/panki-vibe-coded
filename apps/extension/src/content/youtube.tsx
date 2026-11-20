@@ -711,10 +711,21 @@ const listening = createListening({
 
 /**
  * While the Word pop-up is open on a word of Panki's subtitles (not the Panki panel's list), as While the Word pop-up
- * is open says (`lookSettings.ts` → `WhileOpen`): which word it's open on, the end of that word's line where it's to
- * pause there (Pause before the next line), and whether it paused the video, so the video plays again as it closes.
+ * is open says (`lookSettings.ts` → `WhileOpen`): which word it's open on; for Pause before the next line, where to
+ * pause (`until`: whichever comes first of the word's line's end and the next line's start) and where that line starts
+ * (`from`); and whether it paused the video, so the video plays again as it closes.
  */
-const whileOpen: { id: string | null; until: number | null; paused: boolean } = { id: null, until: null, paused: false };
+const whileOpen: { id: string | null; until: number | null; from: number | null; paused: boolean } = { id: null, until: null, from: null, paused: false };
+/**
+ * How many frames ahead of `until` Pause before the next line pauses, so the frame that would draw the next line never
+ * comes; a frame's length is `frameGap`, measured as the lines are followed, at the video's speed.
+ */
+const PAUSE_LEAD_FRAMES = 2;
+/** A frame's length, s, as the last two frames lay apart (60 a second until measured; bounded, so a tab behind another doesn't stretch it). */
+let frameGap = 1 / 60;
+let lastFrameAt: number | null = null;
+/** Where a late Pause before the next line is put back to, s before `until`: the latest moment the line is still the one on screen. */
+const LAND_BEFORE = 0.01;
 function popupShown(view: View | null) {
   const where = view?.pointed.where;
   if (!view || !where || where.of !== "line" || where.inPanel) {
@@ -735,7 +746,20 @@ function popupShown(view: View | null) {
     whileOpen.paused = true;
   }
   if (how === "pauseNext") {
-    whileOpen.until = lines.byId(where.lineId)?.end ?? null;
+    // The next line shows as soon as it starts, which can be before this one ends (lines cut from speech that runs on);
+    // a line with no end yet pauses as the next would start.
+    const line = lines.byId(where.lineId);
+    const next = line ? (lines.snapshot().find((other) => other.start > line.start) ?? null) : null;
+    const until = Math.min(line?.end ?? Infinity, next?.start ?? Infinity);
+    whileOpen.until = Number.isFinite(until) ? until : null;
+    whileOpen.from = line?.start ?? null;
+    // Opened on a line already past its end (still on screen a moment after its last word): paused where it is, never
+    // put back.
+    if (video && !video.paused && whileOpen.until !== null && video.currentTime >= whileOpen.until) {
+      video.pause();
+      whileOpen.paused = true;
+      whileOpen.until = null;
+    }
     pauseAtLineEnd();
   }
 }
@@ -743,6 +767,7 @@ function popupShown(view: View | null) {
 function popupGone() {
   whileOpen.id = null;
   whileOpen.until = null;
+  whileOpen.from = null;
   if (heldAt !== null) {
     heldAt = null;
     lines.refresh();
@@ -752,12 +777,22 @@ function popupGone() {
     if (video?.paused) void video.play().catch(() => undefined);
   }
 }
-/** Pause before the next line: the video reaching the end of the line the pop-up is open on pauses there, once. */
+/**
+ * Pause before the next line: the video coming within `PAUSE_LEAD_FRAMES` frames of `until` pauses there, once, and
+ * stays where it paused: never moved on, since a seek forward loses some of the video and can cut its sound. Run
+ * before the lines are read again each frame (`followLines`), so the frame that crosses never draws the next line. A
+ * pause that came late all the same (a tab behind another, its frames not drawn, the video at `until` or past it) is
+ * put back to `LAND_BEFORE` before it, which loses nothing; `until` is let go first, so that can't pause it again.
+ */
 function pauseAtLineEnd() {
-  if (whileOpen.until === null || !video || video.paused || video.currentTime < whileOpen.until) return;
+  const until = whileOpen.until;
+  if (until === null || !video || video.paused) return;
+  const lead = PAUSE_LEAD_FRAMES * frameGap * video.playbackRate;
+  if (video.currentTime + lead < until) return;
   video.pause();
   whileOpen.paused = true;
   whileOpen.until = null;
+  if (video.currentTime >= until) video.currentTime = Math.max(whileOpen.from ?? 0, until - LAND_BEFORE);
 }
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
 const inPlace = cell(false);
@@ -3534,9 +3569,12 @@ function begin() {
 // and gives way the moment the next one's is (looked at four times a second with the rest below, a line would come up
 // to a quarter of a second late). Nothing is drawn again unless the line changes (`lineSource.ts` →
 // `refresh`).
-function followLines() {
-  lines.refresh();
+function followLines(at: number) {
+  if (lastFrameAt !== null) frameGap = Math.min(0.1, Math.max(1 / 240, (at - lastFrameAt) / 1000));
+  lastFrameAt = at;
+  // Paused first: read again first, the frame crossing into the next line would draw it before the pause.
   pauseAtLineEnd();
+  lines.refresh();
   requestAnimationFrame(followLines);
 }
 /** The player followed, from `begin` on. */
@@ -3549,8 +3587,8 @@ function followPlayer() {
     // watcher says its own failures itself).
     watcher.tick(video);
     transcriber.tick(video);
-    lines.refresh();
     pauseAtLineEnd();
+    lines.refresh();
     followFinish(video);
     // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
     tryResume();
