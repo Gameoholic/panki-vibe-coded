@@ -44,6 +44,17 @@ export const HELD_KEY: Record<HeldBinding, string> = { shift: "Shift", ctrl: "Co
 /** The key a held binding holds, as the options page and an explainer's keycap name it. */
 export const keyWordOf = (key: HeldBinding) => ({ shift: "Shift", ctrl: "Ctrl", alt: "Alt" })[key];
 
+/**
+ * What the video does while the Word pop-up is open on a word of Panki's subtitles (`content/youtube.tsx` →
+ * `whileOpen`): plays on as it did (`keep`); pauses, and plays again as the pop-up closes (`pause`); plays on with the
+ * subtitles held on the line the pop-up opened on (`hold`); or plays on until that line ends, pausing there, and plays
+ * again as the pop-up closes (`pauseNext`, to begin with).
+ */
+export const WHILE_OPEN = ["keep", "pause", "hold", "pauseNext"] as const;
+export const WhileOpen = z.enum(WHILE_OPEN);
+export type WhileOpen = z.infer<typeof WhileOpen>;
+export const WHILE_OPEN_NAMES: Record<WhileOpen, string> = { keep: "Keep playing", pause: "Pause the video", hold: "Hold the line", pauseNext: "Pause before the next line" };
+
 type Mods = { shiftKey: boolean; ctrlKey: boolean; altKey: boolean; metaKey?: boolean };
 /** The click a press is, by the keys held with it: a click alone, or with one of Shift, Ctrl or Alt; null with more than one, or with the Mac's Command. */
 export function clickOf(e: Mods): Binding | null {

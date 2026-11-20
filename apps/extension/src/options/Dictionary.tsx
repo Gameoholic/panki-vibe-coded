@@ -28,7 +28,7 @@ import {
   type Progress,
 } from "../dictionary/store";
 import { HOVER_KEEP } from "../capture/look";
-import { BINDINGS, BINDING_NAMES, HOVER_DELAY, hostOf, isHeld, keyWordOf, permissionsFor, type Binding, type LookWhere } from "../lookSettings";
+import { BINDINGS, BINDING_NAMES, HOVER_DELAY, WHILE_OPEN, WHILE_OPEN_NAMES, hostOf, isHeld, keyWordOf, permissionsFor, type Binding, type LookWhere } from "../lookSettings";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { lookByOf, panelKept, panelOpensOf, writeStore, type Stored } from "../storage";
@@ -815,6 +815,21 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           onDrawer={(drawerBySubtitles) => void writeStore({ ...panelKept(store), drawerBySubtitles }).then(onChanged)}
           onPopup={(lookBySubtitles) => void writeStore({ ...panelKept(store), lookBySubtitles }).then(onChanged)}
           onDelay={(lookDelayMsSubtitles) => void writeStore({ ...panelKept(store), lookDelayMsSubtitles }).then(onChanged)}
+        />
+        {/* What the video does while the pop-up is open on a subtitle's word (`WhileOpen`); the panel's list isn't held or paused for. */}
+        <Setting
+          id="look-while-open"
+          label="While the Word pop-up is open"
+          control={
+            <Dropdown
+              id="look-while-open-choice"
+              label="While the Word pop-up is open"
+              options={WHILE_OPEN.map((id) => ({ id, label: WHILE_OPEN_NAMES[id] }))}
+              value={store.popupWhileOpen}
+              disabled={off}
+              onChange={(popupWhileOpen) => void writeStore({ popupWhileOpen }).then(onChanged)}
+            />
+          }
         />
       </div>
       {/* The Panki panel's list of lines beside the video, apart from the subtitles, the same two rows. */}

@@ -34,10 +34,11 @@ export type Pointed = {
   alive: () => boolean;
 };
 /**
- * Panki's own line under the player (the caption line and the letter of it the word begins at, and how long the word
- * taken there is), the video site's own captions, or any other text on a page.
+ * Panki's own line under the player (the caption line and the letter of it the word begins at, how long the word
+ * taken there is, and whether it's the Panki panel's list beside the video rather than Panki's subtitles), the video
+ * site's own captions, or any other text on a page.
  */
-export type Where = { of: "line"; lineId: number; offset: number; length: number } | { of: "captions" } | { of: "page" };
+export type Where = { of: "line"; lineId: number; offset: number; length: number; inPanel: boolean } | { of: "captions" } | { of: "page" };
 
 /**
  * What's showing: the word found, where it is, whether it's kept open (the key let go on the word, or a click), and
@@ -194,7 +195,9 @@ export function createLooker(onView: (view: View | null) => void, find: Find = a
   const tell = (next: View | null) => {
     view = next;
     stopWatch();
-    if (next?.hovered && !next.locked) {
+    // Panki's own lines aren't watched: their words moving on or gone under a pointer that stood still leave the pop-up
+    // open, and only a real move takes it away (`drift`).
+    if (next?.hovered && !next.locked && next.pointed.where.of !== "line") {
       watch = setInterval(() => {
         // A word pointed at afresh is being looked up: its answer takes this one's place, so it isn't closed under it.
         if (view && view.hovered && !view.locked && pointedId === view.pointed.id && stale(view)) looker.close();
@@ -468,6 +471,9 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   let lastId: string | null = null;
   const onMove = (e: PointerEvent) => {
     if (e.pointerType !== "mouse") return;
+    // A move the browser sends with the pointer where it was (what's under it changed: Panki's line gone) isn't one:
+    // the page's own text changing under a still pointer is the look again's (`relook`), and Panki's lines' a real move's.
+    if (e.clientX === x && e.clientY === y) return;
     // Where the pointer is, wherever it is: letting go of the key on the word keeps the popup, even on Panki's own line.
     x = e.clientX;
     y = e.clientY;
@@ -491,7 +497,8 @@ export function listenOnPage(looker: Looker, look: PageLook) {
   };
   // The page's own text changing under a pointer that stood still (the site's captions as the video plays): what now
   // stands there is pointed at as a move onto it would, through the same `pointWith`: a word that comes under the
-  // pointer is hovered whether the pointer moved or the word did. Panki's own lines do the same as they're drawn (`Line.tsx`).
+  // pointer is hovered whether the pointer moved or the word did. Panki's own lines don't: there only a real move points
+  // (`Line.tsx` → `LineLook.under`).
   const relook = setInterval(() => {
     if (!onPage || !last) return;
     const pointed = last();
@@ -514,8 +521,11 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     }
     // Where looking up is off, the pointer's last place is none (`onMove`); Panki's line sets its own only while it's on.
     if (e.repeat || !last) return;
-    if (isKey(lastPopup ?? look.popup(null), e.key)) looker.point(last(), { x, y });
-    drawer.key(lastDrawer ?? look.drawer(null), e.key, last(), lastOpen ?? openOnPage);
+    // The word under the pointer now: one gone with its line (the pointer stood still as it went) is none.
+    const there = last();
+    const now = there && there.alive() ? there : null;
+    if (isKey(lastPopup ?? look.popup(null), e.key)) looker.point(now, { x, y });
+    drawer.key(lastDrawer ?? look.drawer(null), e.key, now, lastOpen ?? openOnPage);
   };
   const onUp = (e: KeyboardEvent) => {
     mods = { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
@@ -568,6 +578,15 @@ export function listenOnPage(looker: Looker, look: PageLook) {
     }
     if (view) looker.close();
   };
+  /** Panki's own line drawn again under a pointer that stood still: what's under it now, known for a key pressed, never pointed at. */
+  function standsOn(pointed: () => Pointed | null, popup: Binding, drawerBy: Binding, delay: number, open: (pointed: Pointed) => void) {
+    last = pointed;
+    lastPopup = popup;
+    lastDrawer = drawerBy;
+    lastDelay = delay;
+    lastOpen = open;
+    onPage = false;
+  }
   const onScroll = () => looker.release();
   const onBlur = () => looker.release();
   document.addEventListener("pointermove", onMove, { passive: true });
@@ -583,14 +602,10 @@ export function listenOnPage(looker: Looker, look: PageLook) {
      * drawer opens on its words; and hands its moves to the drawer's pointing, so a key held or a rest opens it there.
      */
     pointedBy(pointed: () => Pointed | null, popup: Binding, drawerBy: Binding, delay: number, open: (pointed: Pointed) => void, e: Mods) {
-      last = pointed;
-      lastPopup = popup;
-      lastDrawer = drawerBy;
-      lastDelay = delay;
-      lastOpen = open;
-      onPage = false;
+      standsOn(pointed, popup, drawerBy, delay, open);
       drawer.move(drawerBy, delay, e, pointed(), open);
     },
+    standsOn,
     stop() {
       clearInterval(relook);
       document.removeEventListener("pointermove", onMove);

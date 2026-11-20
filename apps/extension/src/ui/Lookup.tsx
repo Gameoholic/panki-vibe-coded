@@ -1,5 +1,5 @@
 /** @panki The Word pop-up: a word's dictionary entries, laid out as set (`Lookup`, `LookupBody`, `PopupEdit`). */
-import { Fragment, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AlreadyIn } from "@web/components/AlreadyIn";
 import { Button } from "@web/components/Button";
 import { JudgedRow } from "@web/components/JudgedRow";
@@ -22,6 +22,8 @@ import { Glossary } from "./Glossary";
 /** How wide the popup is, at most, and how far it keeps from the window's edges; from the word it keeps nothing. */
 const WIDTH = 420;
 const EDGE = 8;
+/** How often the lit word is looked at, ms: gone from the screen, its box goes. */
+const WORD_LOOK_MS = 150;
 
 /** Which side of its word the popup stands on: under it, or over it. */
 type Side = "under" | "over";
@@ -608,6 +610,15 @@ export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, car
   const [side, setSide] = useState<Side | null>(null);
   const anchor = view.word;
   const kept = view.locked;
+  // The word lit only while it's on the screen as it was: gone with its line (the subtitles moving on), the box goes
+  // with it, and the pop-up stays (`look.ts`). Looked at a few times a second, since a line goes with nothing pointed.
+  const [wordShown, setWordShown] = useState(true);
+  useEffect(() => {
+    const pointed = view.pointed;
+    setWordShown(pointed.alive());
+    const watch = setInterval(() => setWordShown(pointed.alive()), WORD_LOOK_MS);
+    return () => clearInterval(watch);
+  }, [view.pointed]);
   // Measured before it's painted, and again whenever what's in it changes size (its words found, a meaning shown, an
   // answer coming in). Kept open, it's being read or typed in, so it stays on its side and scrolls inside instead.
   useLayoutEffect(() => {
@@ -637,7 +648,7 @@ export function Lookup({ view, layout, onKeep, onClose, onAdd, split = null, car
   const place = (side ?? "under") === "under" ? { top: anchor.bottom, maxHeight: room.under } : { bottom: window.innerHeight - anchor.top, maxHeight: room.over };
   return (
     <>
-      <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} />
+      {wordShown ? <span className="look-lit" aria-hidden="true" style={{ left: mark.left - 2, top: mark.top - 1, width: mark.width + 4, height: mark.height + 2 }} /> : null}
       {/* Kept open, its × is what marks it so: no border does. */}
       <div ref={box} className="look" role="dialog" aria-label="Word pop-up" style={{ left, width, ...place }} onPointerDown={onKeep}>
         {view.locked && onClose ? (

@@ -67,7 +67,7 @@ import {
 } from "@panki/contracts";
 import { Found, Lattice } from "./dictionary/found";
 import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, KeptPiece, PIECE_BASE64_MAX as DOWNLOAD_PIECE_BASE64_MAX, PieceAsk } from "./download/download";
-import { Binding, HoverDelay, LookWhere } from "./lookSettings";
+import { Binding, HoverDelay, LookWhere, WhileOpen } from "./lookSettings";
 import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { MarkPaint } from "./seekLook";
@@ -159,6 +159,7 @@ export const Local = z.object({
     panelPopup: Binding,
     panelDrawer: Binding,
     panelDelay: HoverDelay,
+    whileOpen: WhileOpen,
     where: LookWhere,
     sites: z.array(z.string()),
     layout: PopupLayout.nullable(),

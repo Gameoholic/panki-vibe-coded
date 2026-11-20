@@ -11,12 +11,17 @@ export type PointerAt = { pointerType: string; clientX: number; clientY: number;
 
 /**
  * The pointer's last known place and the keys held now, heard on the window (a press in a closed shadow root still
- * reaches it): what a line drawn again under a pointer that stood still points at (a pointer
- * resting on it is hovering it), On hover or a key held alike.
+ * reaches it): what's under a pointer that stood still while its line was drawn again (`LineLook.under`).
  */
 let lastPointer: PointerAt | null = null;
+/**
+ * Whether the last pointer move moved the pointer at all. A browser sends a move with the pointer where it was when
+ * what's under it changes (a line drawn again or gone); only a real move points at a word.
+ */
+let moved = true;
 if (typeof window !== "undefined") {
   window.addEventListener("pointermove", (e) => {
+    moved = lastPointer === null || lastPointer.clientX !== e.clientX || lastPointer.clientY !== e.clientY;
     lastPointer = { pointerType: e.pointerType, clientX: e.clientX, clientY: e.clientY, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, altKey: e.altKey };
   }, { capture: true, passive: true });
   const keys = (e: KeyboardEvent) => {
@@ -67,8 +72,14 @@ function parentOf(el: Element): Element | null {
 
 /** Pointing at the line's words to look them up: the line says which word the pointer is on, and asks before a press picks. */
 export type LineLook = {
-  /** The pointer moved over the line, or the line was drawn again under it: onto word `at` (its button), or off every word (null). */
+  /** The pointer really moved over the line: onto word `at` (its button), or off every word (null). */
   move: (at: number | null, button: HTMLElement | null, e: PointerAt) => void;
+  /**
+   * The line drawn again under a pointer that stood still: word `at` (its button) is what's under it now, or none. It
+   * isn't pointed at (an open pop-up stays; only a real move picks a new word), only known, so a key pressed now acts
+   * on it.
+   */
+  under: (at: number | null, button: HTMLElement | null, e: PointerAt) => void;
   /**
    * A press on word `at` (its button), with the keys held with it: true when it isn't a pick (the pop-up's to open or
    * keep, or bound to nothing), false when it's the Card drawer's, a pick.
@@ -108,14 +119,19 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
   const text = tokens.map((token) => token.text).join("");
   const within = (span: Span | null, i: number) => span !== null && i >= span[0] && i <= span[1];
   const root = useRef<HTMLDivElement>(null);
-  const onMove = (target: EventTarget | null, e: PointerAt) => {
-    if (!look) return;
+  /** The word's button under a point of the line, shown whole; null off every word. */
+  const wordAt = (target: EventTarget | null) => {
     const under = target instanceof Element ? target.closest<HTMLElement>("[data-at]") : null;
-    const button = under && shownWhole(under) ? under : null;
+    return under && shownWhole(under) ? under : null;
+  };
+  // A move the browser sends with the pointer where it was (the words under it changed) isn't one.
+  const onMove = (target: EventTarget | null, e: PointerAt) => {
+    if (!look || !moved) return;
+    const button = wordAt(target);
     look.move(button ? Number(button.dataset.at) : null, button, e);
   };
   // Drawn again with other words (the subtitles moving on as the video plays) while the pointer stands over it: what
-  // now stands under the pointer is pointed at, as if the pointer had just come onto it, through the same `move`.
+  // now stands under the pointer is told (`under`), never pointed at.
   const lookRef = useRef(look);
   lookRef.current = look;
   useLayoutEffect(() => {
@@ -125,7 +141,8 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
     const place = el.getRootNode();
     const under = place instanceof Document || place instanceof ShadowRoot ? place.elementFromPoint(at.clientX, at.clientY) : null;
     if (!under || !el.contains(under)) return;
-    onMove(under, at);
+    const button = wordAt(under);
+    lookRef.current.under(button ? Number(button.dataset.at) : null, button, at);
     // Each new text, or the same text split another way, once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, tokens.map((token) => token.start).join(",")]);
@@ -141,7 +158,9 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
         } as CSSProperties
       }
       onPointerMove={(e) => onMove(e.target, e)}
-      onPointerLeave={(e) => look?.move(null, null, e)}
+      onPointerLeave={(e) => {
+        if (moved) look?.move(null, null, e);
+      }}
     >
       {tokens.map((token, i) =>
         token.word ? (

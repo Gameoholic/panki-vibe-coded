@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts";
 import { DEFAULT_DOWNLOAD_QUALITY, DEFAULT_DOWNLOAD_SPEED, DownloadQuality, DownloadSpeed } from "./download/download";
-import { Binding, HOVER_DELAY, HoverDelay, LookKey, LookWhere } from "./lookSettings";
+import { Binding, HOVER_DELAY, HoverDelay, LookKey, LookWhere, WhileOpen } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
@@ -87,6 +87,8 @@ const Stored = z.object({
    * own are first set, read until then as Panki's subtitles' (`panelOpensOf`); the options page writes them as they
    * stand before it changes a subtitles' row, so changing the subtitles never changes the panel.
    */
+  /** What the video does while the Word pop-up is open on a word of Panki's subtitles (`lookSettings.ts` → `WhileOpen`): Pause before the next line to begin with. */
+  popupWhileOpen: WhileOpen.catch("pauseNext"),
   lookByPanel: Binding.nullable().catch(null),
   drawerByPanel: Binding.nullable().catch(null),
   lookDelayMsPanel: HoverDelay.nullable().catch(null),
@@ -340,6 +342,7 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
     subtitleDrawer: store.drawerBySubtitles,
     delay: store.lookDelayMs,
     subtitleDelay: store.lookDelayMsSubtitles,
+    whileOpen: store.popupWhileOpen,
     where: store.lookWhere,
     sites: store.lookSites,
     layout: store.popupLayout,

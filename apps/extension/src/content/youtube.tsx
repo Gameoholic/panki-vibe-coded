@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { beatsOf, createCaptions, cuesOf, holds, lineAt, timeAfter, timedAsSaid, timeOf, transcriptOf, type Beat, type Line as CaptionLine, type Parts } from "../capture/captions";
 import { knownAs, knownCssOf, markKnownOnPage, refreshKnown, startKnown, tintOf, useHeardInDecks, useKnown, useKnownMoments, cameFromHere } from "../capture/known";
 import { createListening } from "../capture/listening";
-import { pointWith, type Pointed } from "../capture/look";
+import { pointWith, type Pointed, type View } from "../capture/look";
 import { clickOf } from "../lookSettings";
 import { CLIP_MAX_SECONDS, RecordError, recordStretch, type RecordFacts } from "../capture/record";
 import { createReplay } from "../capture/replay";
@@ -263,7 +263,12 @@ recapPlace.host.style.cssText = OVER_PICTURE;
 const playerBar = createPlayerBar();
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
 const transcriber = createTranscriber();
-const lines = createLineSource(captions, transcriber, () => video?.currentTime ?? null);
+/**
+ * The video's time the subtitles stand at while the Word pop-up is open on one of their words with Hold the line
+ * (`whileOpen`); null while they follow the video.
+ */
+let heldAt: number | null = null;
+const lines = createLineSource(captions, transcriber, () => heldAt ?? video?.currentTime ?? null);
 /** Videos downloaded to watch without signal: asked for in the panel's menu, run by one page of the site at a time. */
 const downloads = createDownloads();
 /** Panki AI's Proofread on this video's transcript (AI step 6): its runs, read by the menu and the rows alike. */
@@ -701,7 +706,59 @@ const listening = createListening({
   theme: () => siteTheme(),
   parent: () => document.fullscreenElement ?? document.documentElement,
   aiContext: (_pointed, limits) => videoPieces(limits),
+  onView: (view) => popupShown(view),
 });
+
+/**
+ * While the Word pop-up is open on a word of Panki's subtitles (not the Panki panel's list), as While the Word pop-up
+ * is open says (`lookSettings.ts` → `WhileOpen`): which word it's open on, the end of that word's line where it's to
+ * pause there (Pause before the next line), and whether it paused the video, so the video plays again as it closes.
+ */
+const whileOpen: { id: string | null; until: number | null; paused: boolean } = { id: null, until: null, paused: false };
+function popupShown(view: View | null) {
+  const where = view?.pointed.where;
+  if (!view || !where || where.of !== "line" || where.inPanel) {
+    if (whileOpen.id !== null) popupGone();
+    return;
+  }
+  if (whileOpen.id === view.pointed.id) return;
+  // Another word while it's open: the line held and a pause made stand as they are.
+  const opening = whileOpen.id === null;
+  whileOpen.id = view.pointed.id;
+  const how = localNow().look.whileOpen;
+  if (how === "hold" && opening && video) {
+    heldAt = video.currentTime;
+    lines.refresh();
+  }
+  if (how === "pause" && opening && video && !video.paused) {
+    video.pause();
+    whileOpen.paused = true;
+  }
+  if (how === "pauseNext") {
+    whileOpen.until = lines.byId(where.lineId)?.end ?? null;
+    pauseAtLineEnd();
+  }
+}
+/** The pop-up closed: the subtitles follow the video again, and a video it paused plays again. */
+function popupGone() {
+  whileOpen.id = null;
+  whileOpen.until = null;
+  if (heldAt !== null) {
+    heldAt = null;
+    lines.refresh();
+  }
+  if (whileOpen.paused) {
+    whileOpen.paused = false;
+    if (video?.paused) void video.play().catch(() => undefined);
+  }
+}
+/** Pause before the next line: the video reaching the end of the line the pop-up is open on pauses there, once. */
+function pauseAtLineEnd() {
+  if (whileOpen.until === null || !video || video.paused || video.currentTime < whileOpen.until) return;
+  video.pause();
+  whileOpen.paused = true;
+  whileOpen.until = null;
+}
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
 const inPlace = cell(false);
 /**
@@ -1869,7 +1926,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
         return () => button.isConnected && button.textContent === was && shownWhole(button);
       })(),
       context: { text, at: token.start },
-      where: { of: "line", lineId: place.lineId, offset: place.offset, length: token.end - token.start },
+      where: { of: "line", lineId: place.lineId, offset: place.offset, length: token.end - token.start, inPanel },
     };
   };
   /** The Card drawer opened on word `i` alone, as a pick of it: by a key held or a rest bound to the drawer. */
@@ -1905,6 +1962,13 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
         e,
       );
       if (popupOn) pointWith(listening.looker, popup, delay, e, pointed, { x: e.clientX, y: e.clientY });
+    },
+    under(i, button) {
+      const { popupOn, popupBy, drawerBy, delay } = opens();
+      const pointed = i !== null && button ? pointedAt(i, button) : null;
+      listening.standsOn(() => pointed, popupOn ? popupBy : "none", drawerBy, delay, () => {
+        if (i !== null) takeWord(i);
+      });
     },
     press(i, button, e) {
       const { popupOn, popupBy, drawerBy } = opens();
@@ -3472,6 +3536,7 @@ function begin() {
 // `refresh`).
 function followLines() {
   lines.refresh();
+  pauseAtLineEnd();
   requestAnimationFrame(followLines);
 }
 /** The player followed, from `begin` on. */
@@ -3485,6 +3550,7 @@ function followPlayer() {
     watcher.tick(video);
     transcriber.tick(video);
     lines.refresh();
+    pauseAtLineEnd();
     followFinish(video);
     // Where it was stopped, acted on as soon as the player holds this video; the offer goes once the video is there by any way.
     tryResume();

@@ -25,6 +25,8 @@ type Options = {
   subtitlesAt?: (target: EventTarget | null) => boolean;
   /** What the page adds to what Explain sends of a word pointed at (a video's metadata, the subtitles around it, its description); none anywhere else. */
   aiContext?: MorePieces;
+  /** Told whenever the popup opens, moves to another word or closes (null): the video page's While the Word pop-up is open. */
+  onView?: (view: View | null) => void;
 };
 
 export type Listening = ReturnType<typeof createListening>;
@@ -55,6 +57,7 @@ export function createListening(options: Options) {
     () => place.ground.querySelector(".look")?.getBoundingClientRect() ?? null,
   );
   function draw(view: View | null) {
+    options.onView?.(view);
     if (view === null) {
       root.render(null);
       place.host.remove();
@@ -109,6 +112,8 @@ export function createListening(options: Options) {
     settings: () => ({ ...here, ...keys() }),
     /** Panki's own line says where the pointer is when it's over one of its words, so the key pressed there opens what it's bound to. */
     pointedBy: (...args: Parameters<ReturnType<typeof listenOnPage>["pointedBy"]>) => page?.pointedBy(...args),
+    /** Panki's own line drawn again under a still pointer says what's under it now, for a key pressed, never pointing at it. */
+    standsOn: (...args: Parameters<ReturnType<typeof listenOnPage>["standsOn"]>) => page?.standsOn(...args),
     /** Started once this browser's settings are in (`loadLocal`). */
     start() {
       page = listenOnPage(looker, {
