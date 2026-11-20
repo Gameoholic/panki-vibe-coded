@@ -21,7 +21,7 @@ import { Swatches } from "@web/components/Swatches";
 import { TextField } from "@web/components/TextField";
 import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
-import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
+import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_FROM_FOR, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, SkipFromFor, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { askOpenTypes } from "../messages";
@@ -660,10 +660,32 @@ function UtilitiesPanel({ store, onChanged }: { store: Stored; onChanged: () => 
             />
           }
         />
+        {/* How far the arrows took you, shown on the picture: the site's 5 s as well as the short skip, so Off doesn't grey it. */}
+        <Setting
+          id="skip-from"
+          label="Where you skipped from"
+          control={<Toggle id="skip-from-on" says={{ on: "Shown", off: "Hidden" }} on={store.skipFromShown} onChange={(skipFromShown) => void writeStore({ skipFromShown }).then(onChanged)} />}
+        />
+        <Setting
+          id="skip-from-for"
+          label="Shown for"
+          control={
+            <Segmented
+              idPrefix="skip-from-for"
+              label="Shown for"
+              options={SKIP_FROM_FOR_OPTIONS}
+              value={String(store.skipFromFor) as `${SkipFromFor}`}
+              disabled={!store.skipFromShown}
+              onChange={(seconds) => void writeStore({ skipFromFor: SkipFromFor.parse(Number(seconds)) }).then(onChanged)}
+            />
+          }
+        />
       </div>
     </section>
   );
 }
+/** How long Where you skipped from stays, as the options page says each. */
+const SKIP_FROM_FOR_OPTIONS: readonly { id: `${SkipFromFor}`; label: string }[] = SKIP_FROM_FOR.map((seconds) => ({ id: `${seconds}`, label: `${seconds} s` }));
 /** How a short skip goes, as the options page names each way. */
 const SHORT_SKIP_OPTIONS: readonly { id: ShortSkip; label: string }[] = [
   { id: "off", label: "Off" },

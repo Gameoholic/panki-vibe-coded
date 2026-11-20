@@ -4,7 +4,7 @@ import { DEFAULT_SUBTITLE_STYLE, DeckId, SubtitleStyle } from "@panki/contracts"
 import { DEFAULT_DOWNLOAD_QUALITY, DEFAULT_DOWNLOAD_SPEED, DownloadQuality, DownloadSpeed } from "./download/download";
 import { Binding, HOVER_DELAY, HoverDelay, LookKey, LookWhere, WhileOpen } from "./lookSettings";
 import { OptionsTab, type Local } from "./messages";
-import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
+import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipFromFor, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
 import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
 import { sourceOf, sourceShownOf } from "./subtitles";
@@ -231,6 +231,9 @@ const Stored = z.object({
   shortSkip: z.boolean().nullable().catch(null),
   shortSkipKey: SkipKey.catch(DEFAULT_MODULES.shortSkipKey),
   shortSkipSeconds: SkipSeconds.catch(DEFAULT_MODULES.shortSkipSeconds),
+  /** Where you skipped from, and how long it stays (options page, YouTube; `modules.ts` → `skipFrom`). */
+  skipFromShown: z.boolean().catch(DEFAULT_MODULES.skipFrom),
+  skipFromFor: SkipFromFor.catch(DEFAULT_MODULES.skipFromFor),
   /** The Video recap as a video is finished, and its confetti (options page, Videos → Video recap; `modules.ts` → `recap`). */
   videoRecap: z.boolean().catch(DEFAULT_MODULES.recap),
   recapConfetti: z.boolean().catch(DEFAULT_MODULES.recapConfetti),
@@ -318,6 +321,8 @@ export const modulesOf = (store: Stored): Modules => ({
   shortSkip: shortSkipOf(store),
   shortSkipKey: store.shortSkipKey,
   shortSkipSeconds: store.shortSkipSeconds,
+  skipFrom: store.skipFromShown,
+  skipFromFor: store.skipFromFor,
   recap: store.videoRecap,
   recapConfetti: store.recapConfetti,
   downloadMark: store.downloadMark,

@@ -1166,6 +1166,60 @@
   display: flex;
   justify-content: flex-start;
 }
+/* Where you skipped from (`content/youtube.tsx` → `SkipBubble`): dark glass on the picture, on the side the jump went,
+   mid-height so it's never over the subtitles, chevrons over how far; it pops in with each press and fades at the end
+   of its time (`SKIP_FADE_MS`). Its place takes no press, and neither does it. */
+.skip-bubble {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theater) 45%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--theater-ink);
+  font-family: var(--font);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: skip-pop 0.3s cubic-bezier(0.3, 1.35, 0.5, 1);
+  transition: opacity 0.35s ease;
+}
+.skip-bubble.is-back {
+  left: 22%;
+}
+.skip-bubble.is-on {
+  left: 78%;
+}
+.skip-bubble.is-going {
+  opacity: 0;
+}
+.skip-bubble-chev {
+  display: flex;
+}
+.skip-bubble-chev .icon {
+  width: 18px;
+  height: 18px;
+  margin: 0 -4px;
+}
+.skip-bubble-amount {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@keyframes skip-pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.86);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skip-bubble {
+    animation: none;
+    transition: none;
+  }
+}
 /* Its look is the app's subtitle band (`app.css` → `.sub-band`, which a card's clip draws too); only what's the
    extension's own is here: its words are pressed. */
 .over-line {

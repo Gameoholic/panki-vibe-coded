@@ -250,6 +250,10 @@ export type SkipKey = z.infer<typeof SkipKey>;
 export const SKIP_SECONDS_MIN = 0.1;
 export const SKIP_SECONDS_MAX = 60;
 export const SkipSeconds = z.number().min(SKIP_SECONDS_MIN).max(SKIP_SECONDS_MAX);
+/** How long Where you skipped from stays after the last press (`Modules.skipFrom`), in seconds: the choices. */
+export const SKIP_FROM_FOR = [2, 4, 8] as const;
+export const SkipFromFor = z.union([z.literal(2), z.literal(4), z.literal(8)]);
+export type SkipFromFor = z.infer<typeof SkipFromFor>;
 
 export const Modules = z.object({
   /**
@@ -347,6 +351,14 @@ export const Modules = z.object({
   shortSkipKey: SkipKey,
   shortSkipSeconds: SkipSeconds,
   /**
+   * Where you skipped from (a YouTube utility): ← or → skipping, by the site's own 5 s or the short skip, says how far
+   * on the picture, dark glass on the side the jump went ("−5 s", "−2 lines"), added up while pressed again as it
+   * shows, gone `skipFromFor` seconds after the last press (`content/youtube.tsx` → `SkipBubble`). Shown, 4 s, to
+   * begin with.
+   */
+  skipFrom: z.boolean(),
+  skipFromFor: SkipFromFor,
+  /**
    * The Video recap: a short "well done" on the picture as a video is finished, saying what it was to the account
    * (`ui/Recap.tsx`), once per viewing. On to begin with; its confetti on too.
    */
@@ -399,6 +411,8 @@ export const DEFAULT_MODULES: Modules = {
   shortSkip: "time",
   shortSkipKey: "shift",
   shortSkipSeconds: 2.5,
+  skipFrom: true,
+  skipFromFor: 4,
   recap: true,
   recapConfetti: true,
   downloadMark: true,
