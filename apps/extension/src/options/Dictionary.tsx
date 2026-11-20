@@ -31,7 +31,7 @@ import { HOVER_KEEP } from "../capture/look";
 import { BINDINGS, BINDING_NAMES, HOVER_DELAY, hostOf, isHeld, keyWordOf, permissionsFor, type Binding, type LookWhere } from "../lookSettings";
 import { PankiError, panki, type Door } from "../panki";
 import { MARK_SWATCHES, paintOf } from "../seekLook";
-import { lookByOf, writeStore, type Stored } from "../storage";
+import { lookByOf, panelKept, panelOpensOf, writeStore, type Stored } from "../storage";
 import { Pitch } from "../ui/Lookup";
 import { Rename } from "../ui/Rename";
 import { aboutOf, type About } from "./about";
@@ -735,6 +735,7 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
   // Word pop-up heads the panel; off, every row under it is greyed, as every panel's own switch greys its rows.
   const off = !store.moduleLookup;
   const opens = lookByOf(store);
+  const panel = panelOpensOf(store);
   return (
     <section className="panel" aria-labelledby="looking-title">
       <SceneTitle id="popup" titleId="looking-title" store={store} />
@@ -798,7 +799,8 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
       </div>
       {/* The same again for Panki's subtitles alone; which those are is said under the pop-up's row, since a card's clip in
           a review is one. Their drawer is the Panki panel's pick of a word, there with the Word pop-up off too, so only
-          the pop-up's row greys with it. */}
+          the pop-up's row greys with it. A change here first keeps the Panki panel's own as they stand (`panelKept`):
+          they read as these until they're set, and changing these must not change them. */}
       <div className="seek-group">
         <h3 className="seek-group-title">In Panki subtitles</h3>
         <OpensRows
@@ -809,10 +811,27 @@ export function Looking({ store, onChanged }: { store: Stored; onChanged: () => 
           delay={store.lookDelayMsSubtitles}
           drawerOff={false}
           popupOff={off}
-          popupWhy="Wherever Panki shows subtitles: on YouTube and on clips in review cards."
-          onDrawer={(drawerBySubtitles) => void writeStore({ drawerBySubtitles }).then(onChanged)}
-          onPopup={(lookBySubtitles) => void writeStore({ lookBySubtitles }).then(onChanged)}
-          onDelay={(lookDelayMsSubtitles) => void writeStore({ lookDelayMsSubtitles }).then(onChanged)}
+          popupWhy="Under and over the video on YouTube, and on clips in review cards."
+          onDrawer={(drawerBySubtitles) => void writeStore({ ...panelKept(store), drawerBySubtitles }).then(onChanged)}
+          onPopup={(lookBySubtitles) => void writeStore({ ...panelKept(store), lookBySubtitles }).then(onChanged)}
+          onDelay={(lookDelayMsSubtitles) => void writeStore({ ...panelKept(store), lookDelayMsSubtitles }).then(onChanged)}
+        />
+      </div>
+      {/* The Panki panel's list of lines beside the video, apart from the subtitles, the same two rows. */}
+      <div className="seek-group">
+        <h3 className="seek-group-title">In the Panki panel</h3>
+        <OpensRows
+          id="look-panel"
+          place="in the Panki panel"
+          drawer={panel.panelDrawer}
+          popup={panel.panelPopup}
+          delay={panel.panelDelay}
+          drawerOff={false}
+          popupOff={off}
+          popupWhy="The list of lines beside the video."
+          onDrawer={(drawerByPanel) => void writeStore({ ...panelKept(store), drawerByPanel }).then(onChanged)}
+          onPopup={(lookByPanel) => void writeStore({ ...panelKept(store), lookByPanel }).then(onChanged)}
+          onDelay={(lookDelayMsPanel) => void writeStore({ ...panelKept(store), lookDelayMsPanel }).then(onChanged)}
         />
       </div>
     </section>

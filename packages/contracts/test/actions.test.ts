@@ -170,8 +170,8 @@ test("Panki's actions that don't ask for a reply say to leave it empty in their 
   assert.equal(actionOf(NO_ACCOUNT_ACTIONS, "touchUp")?.words, AI_ACTIONS.touchUp.words);
 });
 
-test("The card's Explain, Grammar, Conjugation and Nuance require a reply and no field; none is a default", () => {
-  const replying = ["cardExplain", "cardGrammar", "cardConjugation", "cardNuance"];
+test("The card's Explain, Grammar, Conjugation, Nuance and Context require a reply and no field; none is a default", () => {
+  const replying = ["cardExplain", "cardGrammar", "cardConjugation", "cardNuance", "cardContext"];
   for (const id of replying) {
     const [action] = card(id);
     assert.ok(action && action.place === "card" && action.requires.length === 1 && action.requires[0] === "reply");
@@ -333,7 +333,7 @@ test("The message answered is the first until the conversation has begun, then t
 });
 
 test("Each composer shows its own place's actions; a message with another place's action, or one ticked twice, isn't sent", () => {
-  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "word"), ["explain", "explainGrammar", "explainConjugation", "explainNuance"]);
+  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "word").slice(0, 5), ["explain", "explainGrammar", "explainConjugation", "explainNuance", "explainContext"]);
   assert.deepEqual(openingActionsOf(NO_ACCOUNT_ACTIONS, "word"), ["explain"]);
   assert.deepEqual(openingActionsOf(NO_ACCOUNT_ACTIONS, "card"), ["touchUp"]);
   assert.ok(actionsFor(NO_ACCOUNT_ACTIONS, DECK).every((action) => action.place === "card"));
@@ -342,10 +342,11 @@ test("Each composer shows its own place's actions; a message with another place'
   assert.equal(ExplainAsk.safeParse({ pieces: {}, opening: { actions: ["explain", "explain"], text: "" } }).success, false);
 });
 
-test("Explain requires the reply and the meanings judged; Grammar, Conjugation and Nuance the reply; free text nothing; ticked together, the union", () => {
+test("Explain requires the reply and the meanings judged; Grammar, Conjugation, Nuance and Context the reply; free text nothing; ticked together, the union", () => {
   assert.deepEqual(explainRequiredFor(word("explain")), ["reply", "meanings"]);
   assert.deepEqual(explainRequiredFor(word("explainGrammar")), ["reply"]);
   assert.deepEqual(explainRequiredFor(word("explainConjugation", "explainNuance")), ["reply"]);
+  assert.deepEqual(explainRequiredFor(word("explainContext")), ["reply"]);
   assert.deepEqual(explainRequiredFor(word("explainGrammar", "explain")), ["reply", "meanings"]);
   assert.deepEqual(explainRequiredFor([]), []);
   assert.ok(explainAsks(word("explainNuance"), ""));
@@ -423,12 +424,44 @@ test("Panki's actions as the account has them: as they come, edited, or its own;
 
 test("A place's order is the account's, the rest after it; its own come last until placed", () => {
   const book: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: [mine], order: { word: ["explainNuance", "explain", "gone"] } };
-  assert.deepEqual(ids(book, "word"), ["explainNuance", "explain", "explainGrammar", "explainConjugation"]);
+  assert.deepEqual(ids(book, "word").slice(0, 5), ["explainNuance", "explain", "explainGrammar", "explainConjugation", "explainContext"]);
   assert.deepEqual(ids(book, "card").at(-1), "a1b2");
   const placed: AccountActions = { ...book, order: { card: ["a1b2", "touchUp"] } };
   assert.deepEqual(ids(placed, "card").slice(0, 2), ["a1b2", "touchUp"]);
   // A message's words come in the place's order, whatever order its ids were sent in.
   assert.equal(messageOf(litNow(placed, "card", ["touchUp", "a1b2"]), "").split("\n")[0], "Keep the Explanation casual.");
+});
+
+test("One of Panki's actions added since an account set its order and defaults: at the end of its list, unticked", () => {
+  const book: AccountActions = {
+    ...NO_ACCOUNT_ACTIONS,
+    saved: [mine],
+    order: { card: ["cardNuance", "touchUp", "a1b2", "cardExplain", "cardGrammar", "cardConjugation"], word: ["explainNuance", "explain", "explainGrammar", "explainConjugation"] },
+    defaults: { card: ["touchUp", "a1b2"], word: ["explain", "explainNuance"] },
+  };
+  assert.equal(ids(book, "card").at(-1), "cardContext");
+  assert.equal(ids(book, "word")[4], "explainContext");
+  assert.equal(ids(book, "word").at(-1), "contextHarbor");
+  assert.deepEqual(openingActionsOf(book, "card"), ["touchUp", "a1b2"]);
+  assert.deepEqual(openingActionsOf(book, "word"), ["explainNuance", "explain"]);
+});
+
+test("The blind trial: five of Explain and five of Context in the Word pop-up, each needing what its action needs, one the action's words, none ticked", () => {
+  const trial = actionsOf(NO_ACCOUNT_ACTIONS, "word").slice(5);
+  for (const [of, action] of [["Explain", AI_ACTIONS.explain], ["Context", AI_ACTIONS.explainContext]] as const) {
+    const set = trial.filter((each) => each.name.startsWith(`${of} · `));
+    assert.equal(set.length, 5, of);
+    assert.ok(set.every((each) => each.place === "word" && each.leaves.length === 0 && each.seconds === action.seconds), of);
+    assert.ok(set.every((each) => JSON.stringify(each.requires) === JSON.stringify(action.requires)), of);
+    // One is the control, word for word, and not first in the list.
+    assert.equal(set.filter((each) => each.words === action.words).length, 1, of);
+    assert.notEqual(set[0]?.words, action.words, of);
+    assert.equal(new Set(set.map((each) => each.words)).size, 5, of);
+  }
+  assert.equal(trial.length, 10);
+  assert.deepEqual(openingActionsOf(NO_ACCOUNT_ACTIONS, "word"), ["explain"]);
+  // The card's actions are as they were.
+  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "card"), ["touchUp", "cardExplain", "cardGrammar", "cardConjugation", "cardNuance", "cardContext"]);
 });
 
 test("The defaults ticked as a conversation opens are the account's once set, in the place's order, Panki's until then", () => {
@@ -490,7 +523,7 @@ test("Leave out: a field's own action leaves out every other field; Requires win
 });
 
 test("A place's actions are one flat list, in the account's order; an `under` kept from before is read by nothing", () => {
-  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "card"), ["touchUp", "cardExplain", "cardGrammar", "cardConjugation", "cardNuance"]);
+  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "card"), ["touchUp", "cardExplain", "cardGrammar", "cardConjugation", "cardNuance", "cardContext"]);
   assert.deepEqual(ids({ ...NO_ACCOUNT_ACTIONS, order: { card: ["cardNuance", "touchUp"] } }, "card").slice(0, 2), ["cardNuance", "touchUp"]);
   const kept = KeptAction.parse({ id: "a1", place: "card", name: "A", words: "a", under: "touchUp" });
   assert.ok(!("under" in kept));

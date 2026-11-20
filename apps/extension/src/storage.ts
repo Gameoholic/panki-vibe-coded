@@ -78,9 +78,18 @@ const Stored = z.object({
    */
   drawerBy: Binding.catch("none"),
   drawerBySubtitles: Binding.catch("click"),
-  /** How long the pointer rests on a word before On hover opens its pop-up, ms: Hover delay globally, and in Panki subtitles. */
+  /** How long the pointer rests on a word before Hover opens what it's bound to, ms: Hover delay globally, and in Panki subtitles. */
   lookDelayMs: HoverDelay.catch(HOVER_DELAY.default),
   lookDelayMsSubtitles: HoverDelay.catch(HOVER_DELAY.default),
+  /**
+   * What opens the Word pop-up and the Card drawer on a word of the Panki panel's list beside the video, and its Hover
+   * delay, apart from Panki's subtitles (the rows under the player and the line over the video). Null until the panel's
+   * own are first set, read until then as Panki's subtitles' (`panelOpensOf`); the options page writes them as they
+   * stand before it changes a subtitles' row, so changing the subtitles never changes the panel.
+   */
+  lookByPanel: Binding.nullable().catch(null),
+  drawerByPanel: Binding.nullable().catch(null),
+  lookDelayMsPanel: HoverDelay.nullable().catch(null),
   /**
    * Words already in the account's cards, marked where they stand, each place switched apart and the colour chosen: in
    * Panki's subtitles (its lines under and over the player: Highlight in Panki subtitles), on every page Panki is on,
@@ -326,6 +335,7 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, byStage: store.knownByStage, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
   look: (store) => ({
     ...lookByOf(store),
+    ...panelOpensOf(store),
     drawer: store.drawerBy,
     subtitleDrawer: store.drawerBySubtitles,
     delay: store.lookDelayMs,
@@ -355,6 +365,27 @@ export const lookByOf = (store: Pick<Stored, "lookBy" | "lookBySubtitles" | "loo
   popup: store.lookBy ?? store.lookKey,
   subtitlePopup: store.lookBySubtitles ?? store.lookKeySubtitles,
 });
+
+/** What opens what in the Panki panel's list, and its Hover delay: as set once it has been, and before that as in Panki's subtitles. */
+export const panelOpensOf = (
+  store: Pick<Stored, "lookByPanel" | "drawerByPanel" | "lookDelayMsPanel" | "lookBySubtitles" | "lookKeySubtitles" | "drawerBySubtitles" | "lookDelayMsSubtitles">,
+): { panelPopup: Binding; panelDrawer: Binding; panelDelay: number } => ({
+  panelPopup: store.lookByPanel ?? store.lookBySubtitles ?? store.lookKeySubtitles,
+  panelDrawer: store.drawerByPanel ?? store.drawerBySubtitles,
+  panelDelay: store.lookDelayMsPanel ?? store.lookDelayMsSubtitles,
+});
+/**
+ * The panel's own as they stand, for whichever of them is still unset: written with a change to Panki's subtitles' row,
+ * so the panel, which read as the subtitles until then, keeps what it had.
+ */
+export function panelKept(store: Stored): Partial<Stored> {
+  const now = panelOpensOf(store);
+  return {
+    ...(store.lookByPanel === null ? { lookByPanel: now.panelPopup } : {}),
+    ...(store.drawerByPanel === null ? { drawerByPanel: now.panelDrawer } : {}),
+    ...(store.lookDelayMsPanel === null ? { lookDelayMsPanel: now.panelDelay } : {}),
+  };
+}
 
 /** What the browser keeps, read as the store: everything kept, or what's given in its place (`kept`, the store as it stood before a change). */
 function storeOf(kept: Record<string, unknown>): Stored {

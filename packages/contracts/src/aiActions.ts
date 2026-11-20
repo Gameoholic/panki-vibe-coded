@@ -35,16 +35,32 @@ import { VALUE_MAX } from "./type";
  * `AccountActions`). Everything below reads an action through the account's (`actionOf`, `actionsOf`), never the
  * registry alone.
  */
+/** The blind trial's actions (the key above `TRIAL_ACTIONS`), each set in its shuffled order: after all of Panki's others. */
+const TRIAL_ACTION_IDS = [
+  "explainPebble",
+  "explainTeapot",
+  "explainLantern",
+  "explainWalrus",
+  "explainLadder",
+  "contextMitten",
+  "contextAcorn",
+  "contextKettle",
+  "contextButton",
+  "contextHarbor",
+] as const;
 export const AI_ACTION_IDS = [
   "touchUp",
   "cardExplain",
   "cardGrammar",
   "cardConjugation",
   "cardNuance",
+  "cardContext",
   "explain",
   "explainGrammar",
   "explainConjugation",
   "explainNuance",
+  "explainContext",
+  ...TRIAL_ACTION_IDS,
 ] as const;
 export const PankiActionId = z.enum(AI_ACTION_IDS);
 export type PankiActionId = z.infer<typeof PankiActionId>;
@@ -80,6 +96,81 @@ const panki = (action: Pick<AiAction, "place" | "name" | "words"> & Partial<Omit
   seconds: DEFAULT_ACTION_SECONDS,
   ...action,
 });
+/** The word's Explain, as it says it: the trial's control says it too. */
+const EXPLAIN_WORDS =
+  "Explain what the word means here: which dictionary meaning fits (or what it means, if none does) and the nuance it has in this sentence. Leave out grammar, the word's form, its register and anything else; I can ask for those.";
+/** The word's Context, as it says it: the trial's control says it too. */
+const CONTEXT_WORDS =
+  "Translate the sentence the word is in, naturally, then say in a line or two what it means where it stands: what the speaker means, or what they're answering or reacting to in the lines around it. Don't explain the word itself; I know it.";
+/** A trial's variant: a word's action under its codename, unticked, needing what the action it stands for needs. */
+const trial = (id: (typeof TRIAL_ACTION_IDS)[number], of: "Explain" | "Context", codename: string, words: string): AiAction =>
+  panki({ place: "word", name: `${of} · ${codename}`, words, requires: of === "Explain" ? EXPLAIN_PARTS : ["reply"] }, id);
+/**
+ * A blind trial of the word's Explain and Context (the owner, 2026-11-20): which wording's answers the owner likes best,
+ * what bothered them being extra they didn't need and answers too long. Each set is five actions of the Word pop-up,
+ * named "Explain · <codename>" or "Context · <codename>", one of them the action's wording word for word (the control),
+ * each needing what its action needs so every answer has the same shape. Nothing of this key is ever on screen.
+ *
+ * Explain:
+ * - Pebble: one sentence, nothing else.
+ * - Teapot: the dictionary meaning that fits, then one line of nuance only if there's one worth knowing.
+ * - Lantern: the control, `explain`'s words.
+ * - Walrus: a plain English paraphrase of the word here, 15 words at most, no dictionary talk.
+ * - Ladder: only the dictionary meaning that fits, in its own words; more only when none fits.
+ *
+ * Context:
+ * - Mitten: the translation, then one short line on what it answers or reacts to.
+ * - Acorn: translation and what it means there, 40 words at most in all.
+ * - Kettle: the translation alone.
+ * - Button: the control, `explainContext`'s words.
+ * - Harbor: one sentence on what the speaker means there, no translation.
+ *
+ * Once the owner picks: the winner's words go into `explain` / `explainContext` and, where they fit, into the card's
+ * `cardExplain` / `cardContext` ("the card's sentence" for "the sentence"); every id of `TRIAL_ACTION_IDS` moves to
+ * `RETIRED_ACTION_IDS`, the rows accounts kept of them left as they are, read by nothing.
+ */
+const TRIAL_ACTIONS: Record<(typeof TRIAL_ACTION_IDS)[number], AiAction> = {
+  explainPebble: trial("explainPebble", "Explain", "Pebble", "In one sentence, say what the word means here. Nothing else: no grammar, no form, no register, no other meanings; I can ask for those."),
+  explainTeapot: trial(
+    "explainTeapot",
+    "Explain",
+    "Teapot",
+    "Give the dictionary meaning that fits here, then one line on the nuance it has in this sentence, only if there's one worth knowing. Nothing else.",
+  ),
+  explainLantern: trial("explainLantern", "Explain", "Lantern", EXPLAIN_WORDS),
+  explainWalrus: trial(
+    "explainWalrus",
+    "Explain",
+    "Walrus",
+    "Say what the word means here as a plain English paraphrase, the way a friend would put it, in 15 words at most. No dictionary talk, nothing else.",
+  ),
+  explainLadder: trial(
+    "explainLadder",
+    "Explain",
+    "Ladder",
+    "Name only the dictionary meaning that fits here, in its own words, and stop. Only if none fits, say what it means here in a few words.",
+  ),
+  contextMitten: trial(
+    "contextMitten",
+    "Context",
+    "Mitten",
+    "Translate the sentence the word is in, naturally, then one short line on what it's answering or reacting to in the lines before it. Nothing else; I know the word.",
+  ),
+  contextAcorn: trial(
+    "contextAcorn",
+    "Context",
+    "Acorn",
+    "Translate the sentence the word is in, naturally, and say what it means where it stands, in 40 words at most in all. Nothing on the word itself; I know it.",
+  ),
+  contextKettle: trial("contextKettle", "Context", "Kettle", "Translate the sentence the word is in, naturally. Only the translation: nothing on the word, the grammar or the lines around it."),
+  contextButton: trial("contextButton", "Context", "Button", CONTEXT_WORDS),
+  contextHarbor: trial(
+    "contextHarbor",
+    "Context",
+    "Harbor",
+    "In one sentence, say what the speaker means here, in the flow of the lines around it. No translation, and nothing on the word itself; I know it.",
+  ),
+};
 export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
   // What the card's own fields want rides here, not in User instructions, which the word's conversation sends too.
   touchUp: panki(
@@ -131,13 +222,24 @@ export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
     },
     "cardNuance",
   ),
+  // About the sentence, not the word: the word's meaning is known, the rest of the sentence and the lines around it
+  // aren't. The default reach, the few lines either side: the conversation's Video context length widens it.
+  cardContext: panki(
+    {
+      place: "card",
+      name: "Context",
+      words:
+        "In the reply, translate the card's sentence naturally, then say in a line or two what it means where it stands: what the speaker means, or what they're answering or reacting to in the lines around it. Don't explain the card's word itself; I know it.",
+      requires: ["reply"],
+    },
+    "cardContext",
+  ),
   // The word's, each its starter's ask while Explain had templates: the words of each starter's own paragraph.
   explain: panki(
     {
       place: "word",
       name: "Explain",
-      words:
-        "Explain what the word means here: which dictionary meaning fits (or what it means, if none does) and the nuance it has in this sentence. Leave out grammar, the word's form, its register and anything else; I can ask for those.",
+      words: EXPLAIN_WORDS,
       requires: EXPLAIN_PARTS,
     },
     "explain",
@@ -170,6 +272,17 @@ export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
     },
     "explainNuance",
   ),
+  // The card's Context, of the sentence the word is in.
+  explainContext: panki(
+    {
+      place: "word",
+      name: "Context",
+      words: CONTEXT_WORDS,
+      requires: ["reply"],
+    },
+    "explainContext",
+  ),
+  ...TRIAL_ACTIONS,
 };
 /** The actions ticked as a place's conversation opens, until the account sets its own: Explain, and Touch up. */
 export const PANKI_DEFAULTS: Record<ActionPlaceId, readonly PankiActionId[]> = { word: ["explain"], card: ["touchUp"] };

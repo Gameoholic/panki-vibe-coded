@@ -47,6 +47,7 @@ Older ids (`explain`, `touchUp`, `proofread`) are still read wherever they were 
 ## Actions
 
 - **Panki's are a registry** (`aiActions.ts` → `AI_ACTIONS`); **an account's are a table** (`ai_actions`, every change a row of `ai_action_changes`): its own, and its copy of one of Panki's under Panki's id. Deleted is `removed_at`, never destroyed; Restore clears it; one of Panki's saved as Panki has it is Panki's again. A place's order and defaults are settings. **Read through the account, never the registry alone** (`accountActions.ts`, `actionOf`, `actionsOf`, `openingActionsOf`, `litOf`). Retired ids (`RETIRED_ACTION_IDS`) stay in an account's rows, read by nothing.
+- **Panki's actions** by place: the word's Explain, Grammar, Conjugation, Nuance and Context; the card's Touch up and the same five. Context is about the sentence, never the word: it's translated naturally, then what it means where it stands. **One added later** needs no migration: `actionsOf` puts it after an account's own order, and it's ticked by no one's defaults.
 - **The knobs**:
   - `requires`: the parts that must come back (a card's keys, `"reply"`; a word's parts).
   - `leaves`: the parts the model must leave alone. Never one the same action requires; across a message's ticked actions **Requires wins** (`leftOutFor`).

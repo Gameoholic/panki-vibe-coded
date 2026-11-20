@@ -80,6 +80,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-08: Hover delay.
 - 2026-11-10: In your decks drawn from the kept words, asking nothing; no hairline under Panki AI.
 - 2026-11-12: under or over its word by its measured height, the side with more room when it fits on neither.
+- 2026-11-20: In the Panki panel, the list beside the video's own Open the Card drawer and Open the Word pop-up, apart from Panki subtitles, starting as theirs.
 - 2026-11-19: Open the Card drawer and Open the Word pop-up in place of the two Key to hold rows, globally and in Panki subtitles, each one gesture (None, Click, Shift/Ctrl/Alt+click, Hold Shift/Ctrl/Alt, Hover with its Hover delay beside it), the one the other holds greyed "Used by …"; today's to begin with, a browser's old Key to hold carried over; globally a click taken from a page only on a Japanese word; a review clip's subtitles never open the drawer.
 - 2026-10-15: word audio from Forvo (`architecture/forvo.md`).
 
@@ -118,10 +119,12 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-16: a follow-up that takes a proposal back is a change: its branch merges into the head's conversation, "Withdrew: Meaning" under it, and the earlier chip it greyed says "Withdrawn by your follow-up" and goes to it.
 - 2026-11-16: the conversation's fades kept on its messages' box while the drawer's column or the pop-up scrolls, never over the head or Accept all (`.scroll-hold`).
 - 2026-11-18: the composer's Actions…: a click switches to that action alone, or unticks it when it's lit, and closes the list, Shift+click adds it beside the others (the Word pop-up, the Card drawer, a card opened in a deck; `Dropdown`'s `onOnly`).
+- 2026-11-20: Context, a Panki action in the Word pop-up and on a card: the sentence translated naturally, then what it means where it stands, the word itself left alone; at the end of an account's own order, ticked by no one's defaults (no migration).
 
 ## Under way
 
 - Panki AI: `docs/AI.md`, on main, Touch up, steered done; Automations (`docs/RULES.md`) steps 1 to 8 on main, pushed 2026-11-16, for the owner to try; Video end (`docs/OUTRO.md`) steps 1 to 3 built, uncommitted (shared migration 18, account migration 60, `EXTENSION_PROTOCOL` 16); Panki's answer format later.
+- A blind trial of the Word pop-up's Explain and Context wordings (2026-11-20): the owner tries them and picks; the key, and what to do once picked, in the comment above `TRIAL_ACTIONS` in `packages/contracts/src/aiActions.ts`.
 - The docs: `docs/DOCS.md`.
 - Field mapping on the card type and Touch up in Panki: `docs/MAPPING.md`, steps 1 and 2 built, uncommitted (migration 59, `EXTENSION_PROTOCOL` 15); next, the owner sets each card type's Field mapping by hand and tries them.
 - Streaks, conditions, reminders and the tiles: `docs/STREAKS.md`, on main and on prod with Round 18 (time conditions in hours; Round 17: Week ends on; Round 16: Cards added, `EXTENSION_PROTOCOL` 11; Round 15: no streak at all, `EXTENSION_PROTOCOL` 10; Round 14: All new cards done asks each new card learned, its review finished; Round 8: All new cards done, `EXTENSION_PROTOCOL` 9; Round 7: reviews and new cards apart, studying; `architecture/data-model.md` → Reviews, new cards and studying; migration 54 made the old default streak today's).

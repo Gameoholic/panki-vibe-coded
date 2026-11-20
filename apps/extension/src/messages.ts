@@ -145,8 +145,8 @@ export const Local = z.object({
   modules: Modules,
   known: KnownLook,
   /**
-   * Pointing at a word: what opens the Word pop-up and the Card drawer on one (`Binding`), globally and in Panki's
-   * subtitles, their Hover delays, where it works and how the pop-up is laid out as kept. Whether it works on a page,
+   * Pointing at a word: what opens the Word pop-up and the Card drawer on one (`Binding`), globally, in Panki's
+   * subtitles and in the Panki panel's list, their Hover delays, where it works and how the pop-up is laid out as kept. Whether it works on a page,
    * and the layout filled out against the dictionaries, are `lookState`'s, asked again whenever these change.
    */
   look: z.object({
@@ -156,6 +156,9 @@ export const Local = z.object({
     subtitleDrawer: Binding,
     delay: HoverDelay,
     subtitleDelay: HoverDelay,
+    panelPopup: Binding,
+    panelDrawer: Binding,
+    panelDelay: HoverDelay,
     where: LookWhere,
     sites: z.array(z.string()),
     layout: PopupLayout.nullable(),

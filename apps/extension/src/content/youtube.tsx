@@ -1827,9 +1827,11 @@ type RowProps = {
   editedAt?: ((at: number) => boolean) | null;
   /** This row is being proofread: its words dimmed under the sweep. */
   waiting?: boolean;
+  /** A line of the Panki panel's list beside the video, whose words open what the panel's own bindings say; otherwise Panki's subtitles'. */
+  inPanel?: boolean;
 };
 
-function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, editedAt = null, waiting = false }: RowProps) {
+function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, editedAt = null, waiting = false, inPanel = false }: RowProps) {
   const tokens = useWords(text, forced);
   // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`): by their stage, but where a
   // card was added from (its clip in this video), in the subtitles' own Where you added a card colour; the word picked in its own colour.
@@ -1875,33 +1877,42 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
     const own = charsOf(tokens, [i, i]);
     if (own) onTake({ from: at + own.from, to: at + own.to });
   };
+  /**
+   * What opens what on this row's words: Panki's subtitles', under the player and over the video (`lookBySubtitles`,
+   * `drawerBySubtitles`), or the Panki panel's list's own (`panelOpensOf`). The drawer opens whether or not the Word
+   * pop-up is on.
+   */
+  const opens = () => {
+    const now = listening.settings();
+    return inPanel
+      ? { popupOn: now.subtitlesOn, popupBy: now.panelPopup, drawerBy: now.panelDrawer, delay: now.panelDelay }
+      : { popupOn: now.subtitlesOn, popupBy: now.subtitlePopup, drawerBy: now.subtitleDrawer, delay: now.subtitleDelay };
+  };
   const look: LineLook = {
     move(i, button, e) {
-      // Panki's subtitles, under the player and over the video, take what opens what of their own (`lookBySubtitles`,
-      // `drawerBySubtitles`). The drawer opens whether or not the Word pop-up is on.
-      const { subtitlesOn, subtitlePopup, subtitleDrawer, subtitleDelay } = listening.settings();
+      const { popupOn, popupBy, drawerBy, delay } = opens();
       if (e.pointerType !== "mouse") return;
       const pointed = i !== null && button ? pointedAt(i, button) : null;
-      const popup = subtitlesOn ? subtitlePopup : "none";
+      const popup = popupOn ? popupBy : "none";
       listening.pointedBy(
         () => pointed,
         popup,
-        subtitleDrawer,
-        subtitleDelay,
+        drawerBy,
+        delay,
         () => {
           if (i !== null) takeWord(i);
         },
         e,
       );
-      if (subtitlesOn) pointWith(listening.looker, popup, subtitleDelay, e, pointed, { x: e.clientX, y: e.clientY });
+      if (popupOn) pointWith(listening.looker, popup, delay, e, pointed, { x: e.clientX, y: e.clientY });
     },
     press(i, button, e) {
-      const { subtitlesOn, subtitlePopup, subtitleDrawer } = listening.settings();
+      const { popupOn, popupBy, drawerBy } = opens();
       const view = listening.looker.view();
       const gesture = clickOf(e);
       const pointed = pointedAt(i, button);
       const onItsWord = view !== null && pointed !== null && view.pointed.id === pointed.id;
-      const toDrawer = gesture !== null && gesture === subtitleDrawer;
+      const toDrawer = gesture !== null && gesture === drawerBy;
       // A press on the word whose popup a held key opened keeps the popup open; one kept, or opened by hover, gives way
       // to the drawer's click, the hover's staying (it's there whatever the pointer is on).
       if (onItsWord && !(toDrawer && (view.hovered || view.locked))) {
@@ -1912,7 +1923,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
         if (view && !view.hovered) listening.looker.close();
         return false;
       }
-      if (gesture !== null && gesture === subtitlePopup && subtitlesOn && pointed) {
+      if (gesture !== null && gesture === popupBy && popupOn && pointed) {
         listening.looker.press(pointed);
         return true;
       }
@@ -2068,6 +2079,7 @@ const ListLine = memo(
           onFix={fixable ? (picked) => hand.current.onFix(picked) : null}
           editedAt={ai.length > 0 ? (offset) => ai.some((range) => offset - at >= range.from && offset - at < range.to) : null}
           waiting={waiting}
+          inPanel
         />
       </div>
     );
