@@ -259,9 +259,6 @@ resume.host.style.cssText = OVER_CORNER;
 /** The Video recap, on the picture as the video is finished (`ui/Recap.tsx`). */
 const recapPlace = makePlace(siteTheme());
 recapPlace.host.style.cssText = OVER_PICTURE;
-/** Where you skipped from, on the picture: over the whole player in and out of full screen, never taking a press (`SkipBubble`). */
-const skipPlace = makePlace(siteTheme());
-skipPlace.host.style.cssText = OVER_PICTURE;
 /** The player's control bar as the options page lays it out, Panki's own controls among it (a YouTube utility). */
 const playerBar = createPlayerBar();
 /** Transcribing the video, following the viewer; and what the line under the player reads: the transcript, or the site's captions. */
@@ -1314,10 +1311,6 @@ function place() {
     if (recapPlace.host.style.getPropertyValue("--recap-foot") !== foot) recapPlace.host.style.setProperty("--recap-foot", foot);
   }
   recapPlace.host.dataset.theme = theme;
-  // Where you skipped from, over the picture whenever there's a player: it draws nothing until the arrows skip.
-  if (!player) skipPlace.host.remove();
-  else if (skipPlace.host.parentElement !== player) player.append(skipPlace.host);
-  skipPlace.host.dataset.theme = theme;
   // The player's control bar as laid out: a utility of the site's own, there with Panki on or off. The speed button
   // with a video; when it will end too, but not while an ad plays (its time isn't the video's). Watching, Save for
   // later and Subtitles are Panki's own, there only while it's on, the first two once Panki has said how this video
@@ -3517,7 +3510,6 @@ function App() {
       {createPortal(foldedHere ? <PanelButton onOpen={togglePanel} /> : null, corner.ground)}
       {/* The Video recap on the picture as the video is finished: what this viewing was, a well done. */}
       {createPortal(<RecapHere />, recapPlace.ground)}
-      {createPortal(<SkipBubble />, skipPlace.ground)}
       {/* Panki's own controls on the player's bar, each in its place there (`playerBar.ts` puts them where the layout says): a YouTube utility, drawn for whichever player the page has. */}
       {PANKI_BAR_IDS.map((id) => createPortal(barDrawn[id], playerBar.places[id].ground, id))}
       {/* The drawer is drawn into its own place on the page; it's one screen with the line, so they share what's picked. */}
@@ -3642,92 +3634,8 @@ function shortSkip(e: KeyboardEvent): boolean {
   const landed = lineLanded !== null && lineLanded.src === video.currentSrc ? lineLanded.at : null;
   const byLine = on.shortSkip === "line" ? lineSkipTo(lines.snapshot(), video.currentTime, back, landed) : null;
   lineLanded = byLine === null ? null : { src: video.currentSrc, at: byLine };
-  const from = video.currentTime;
-  const to = Math.max(0, Math.min(end, byLine ?? from + (back ? -1 : 1) * on.shortSkipSeconds));
-  video.currentTime = to;
-  skipped(from, to, byLine !== null);
+  video.currentTime = Math.max(0, Math.min(end, byLine ?? video.currentTime + (back ? -1 : 1) * on.shortSkipSeconds));
   return true;
-}
-
-/**
- * The site's own skip on ← or → alone (its 5 s), heard to show it (`skipped`): the key goes on to the site, and the
- * jump it makes is read off the seek it starts, a moment later; no seek that way, nothing shown. Never while typing,
- * in Panki's own places, or while an ad plays.
- */
-function heardSiteSkip(e: KeyboardEvent) {
-  if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey || !video) return;
-  if (typedElsewhere(e) || adPlaying() || !active().skipFrom) return;
-  const player = video;
-  const from = player.currentTime;
-  const back = e.key === "ArrowLeft";
-  const onSeek = () => {
-    const to = player.currentTime;
-    if (back ? to < from - SITE_SKIP_SLACK : to > from + SITE_SKIP_SLACK) skipped(from, to, false);
-  };
-  player.addEventListener("seeking", onSeek, { once: true });
-  setTimeout(() => player.removeEventListener("seeking", onSeek), SITE_SKIP_WAIT_MS);
-}
-/** How long after the key the site's seek is waited for, ms, and how far it must go to be the skip, s (playing on isn't one). */
-const SITE_SKIP_WAIT_MS = 400;
-const SITE_SKIP_SLACK = 0.5;
-
-/** A run of skips with the arrow keys, added up while its bubble shows: from where, to where, the lines skipped where every press went by a line, how many presses, and when the last was. */
-type SkipRun = { from: number; to: number; lines: number; byLines: boolean; presses: number; at: number };
-const skipRun = cell<SkipRun | null>(null);
-/** A skip made, from one moment to another, by a line or by time: a run of its own, or added to the one showing. */
-function skipped(from: number, to: number, byLine: boolean) {
-  const on = active();
-  if (!on.skipFrom || from === to) return;
-  const was = skipRun.get();
-  const now = Date.now();
-  const base = was !== null && now - was.at < on.skipFromFor * 1000 ? was : { from, to, lines: 0, byLines: true, presses: 0, at: now };
-  skipRun.set({ ...base, to, lines: base.lines + (byLine ? (to < from ? -1 : 1) : 0), byLines: base.byLines && byLine, presses: base.presses + 1, at: now });
-}
-/** How far a run went, as the bubble says it: "−5 s", "+2.5 s", "−2 lines". */
-function skipWords(run: SkipRun): string {
-  if (run.byLines && run.lines !== 0) {
-    const n = Math.abs(run.lines);
-    return `${run.lines < 0 ? "−" : "+"}${n} ${n === 1 ? "line" : "lines"}`;
-  }
-  const by = run.to - run.from;
-  const seconds = Math.round(Math.abs(by) * 10) / 10;
-  return `${by < 0 ? "−" : "+"}${Number.isInteger(seconds) ? seconds : seconds.toFixed(1)} s`;
-}
-/** How long the bubble takes to fade at the end of its time, ms; the same as its CSS. */
-const SKIP_FADE_MS = 350;
-/**
- * Where you skipped from: dark glass on the side the jump went, inside the player, chevrons over how far
- * (`skipWords`), popping in again with each press that adds up and fading `skipFromFor` seconds after the last. Never
- * over the subtitles (it stands mid-picture), never taking a press.
- */
-function SkipBubble() {
-  const run = useSyncExternalStore(skipRun.subscribe, skipRun.get);
-  const [going, setGoing] = useState(false);
-  useEffect(() => {
-    if (!run) return;
-    setGoing(false);
-    const stay = active().skipFromFor * 1000;
-    const fade = setTimeout(() => setGoing(true), Math.max(0, stay - SKIP_FADE_MS));
-    const gone = setTimeout(() => {
-      if (skipRun.get() === run) skipRun.set(null);
-    }, stay);
-    return () => {
-      clearTimeout(fade);
-      clearTimeout(gone);
-    };
-  }, [run]);
-  if (!run) return null;
-  const back = run.to < run.from;
-  return (
-    <div key={run.presses} className={`skip-bubble ${back ? "is-back" : "is-on"} ${going ? "is-going" : ""}`.replace(/\s+/g, " ").trim()} aria-hidden="true">
-      <span className="skip-bubble-chev">
-        {[0, 1, 2].map((i) => (
-          <Icon key={i} name={back ? "back" : "forward"} />
-        ))}
-      </span>
-      <span className="skip-bubble-amount">{skipWords(run)}</span>
-    </div>
-  );
 }
 
 /** Whether a field of a place of Panki's has the focus: its shadow root, closed to the page, is open to its maker. */
@@ -3852,7 +3760,6 @@ function listen() {
         modifierDown = null;
         return;
       }
-      heardSiteSkip(e);
       pageKey(e);
     },
     true,

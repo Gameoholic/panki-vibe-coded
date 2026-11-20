@@ -70,7 +70,6 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-14: Downloads step 3: the downloaded mark on a downloaded video's every thumbnail, Panki's home shelves, the recap's what's next and the player bar (Downloaded), live on every page; Downloaded mark Shown / Hidden on the Downloads tab (`architecture/downloads.md` → On screen); Download speed, 1× to 16×, 4× to begin with, beside Download quality.
 - 2026-11-14: Downloads step 4, B on trial: a downloaded video's copy put into YouTube's own player where it runs short with no signal, what it did said under Downloaded in the panel's menu and in the console (`architecture/downloads.md` → Playing from the copy).
 - 2026-11-16: Short skip Off, By time or By line, By line a subtitle line back or on (← to the start of the line playing, and from its start, or pressed again after a skip by a line, to the line before), by the seconds without subtitles; a kept On reads as By time (`architecture/watching.md`).
-- 2026-11-20: Where you skipped from, Shown / Hidden and Shown for 2 / 4 / 8 s beside Short skip: ← or → skipping, the site's 5 s or the short skip, shows "−5 s" or "−2 lines" in dark glass on the picture's side the jump went, adding up while pressed again (`architecture/watching.md`).
 - 2026-10-22: kept up to date without a store (`architecture/updates.md`).
 - 2026-11-05: what the extension keeps of Panki's, one registry; 2026-11-07: this browser's own settings (`architecture/kept.md`).
 
