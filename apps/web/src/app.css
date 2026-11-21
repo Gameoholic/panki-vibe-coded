@@ -8910,6 +8910,8 @@ mark.search-lit {
   position: absolute;
   pointer-events: auto;
   display: grid;
+  /* One column the pop-up's own width, never wider whatever's in it: a part too wide wraps inside it. */
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: 12px;
   overflow: auto;

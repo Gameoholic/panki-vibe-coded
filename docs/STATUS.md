@@ -83,6 +83,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-20: a line moving on or gone under a still pointer leaves the pop-up open, only a real move picking another word, a key acting on what's under the pointer now; the word's box gone with its line; While the Word pop-up is open in Panki subtitles (Keep playing, Pause the video, Hold the line, Pause before the next line, the last to begin with).
 - 2026-11-20: In the Panki panel, the list beside the video's own Open the Card drawer and Open the Word pop-up, apart from Panki subtitles, starting as theirs.
 - 2026-11-19: Open the Card drawer and Open the Word pop-up in place of the two Key to hold rows, globally and in Panki subtitles, each one gesture (None, Click, Shift/Ctrl/Alt+click, Hold Shift/Ctrl/Alt, Hover with its Hover delay beside it), the one the other holds greyed "Used by …"; today's to begin with, a browser's old Key to hold carried over; globally a click taken from a page only on a Japanese word; a review clip's subtitles never open the drawer.
+- 2026-11-21: a word read many ways (私, eleven) wraps its readings inside its box, the pop-up never wider than its frame.
 - 2026-10-15: word audio from Forvo (`architecture/forvo.md`).
 
 **Automations** (`architecture/rules.md`, `docs/RULES.md`)
