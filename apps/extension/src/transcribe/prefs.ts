@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DEFAULT_SUBTITLE_STYLE, SubtitleStyle } from "@panki/contracts";
-import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "../seekLook";
+import { DEFAULT_SEEK_LOOK, FillStrength, MarkPaint, SeekLook } from "../seekLook";
 
 /**
  * How transcribing behaves for this browser's viewer, theirs to set on the options page (Videos → Transcribing),
@@ -36,6 +36,10 @@ export const TranscribePrefs = z.object({
   seek: SeekLook,
   /** The colour the picked word is lit in, under the player and over the video (`Line`'s `pickColour`): Panki blue to begin with. */
   pick: MarkPaint,
+  /** The colour the picked word's other places are lit in, fainter than the pick, while its card is being added (`Line`'s `same`): Panki blue to begin with. */
+  same: MarkPaint,
+  /** How strongly they're filled with it, in percent: fainter than the pick to begin with. */
+  sameStrength: FillStrength,
   /**
    * The colour a word in Panki's subtitles takes where you added a card for it (`capture/known.ts` → `cameFromHere`),
    * the same word elsewhere tinted by its stage: the subtitles' own, apart from the seek bar's mark of the same.
@@ -44,4 +48,4 @@ export const TranscribePrefs = z.object({
   // There's no mode to pick: Live and Full are each an action and an automation of their own (`transcriber.ts`).
 });
 export type TranscribePrefs = z.infer<typeof TranscribePrefs>;
-export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: "accent", added: "violet" };
+export const DEFAULT_PREFS: TranscribePrefs = { trigger: "auto", overVideo: true, style: DEFAULT_SUBTITLE_STYLE, markUnder: true, markOver: true, seek: DEFAULT_SEEK_LOOK, pick: "accent", same: "accent", sameStrength: 25, added: "violet" };

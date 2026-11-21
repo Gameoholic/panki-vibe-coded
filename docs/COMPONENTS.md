@@ -239,7 +239,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | panki | `panki.ts` | Calling Panki from the extension (`panki`, `PankiError`). Never a second client. |
 | popupKinds | `popupKinds.ts` | The Word pop-up's layout in words: each part's name, what it's for, its choices (`PART_NAMES`, `PART_ABOUT`, `SHOW_OPTIONS`, `bandOf`). |
 | popupLayout | `popupLayout.ts` | How the Word pop-up is laid out, as kept, and the moves on it (`PopupLayout`, `popupLayoutOf`, `moveBodyPart`, `withMeanings`). |
-| seekLook | `seekLook.ts` | How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`). |
+| seekLook | `seekLook.ts` | How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`, `FILL_STRENGTHS`, `fillCss`). |
 | storage | `storage.ts` | What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). |
 | subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |
 | proofreader | `transcribe/proofreader.ts` | Proofread and Find where the video ends on a video's page: runs, their calls, Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |

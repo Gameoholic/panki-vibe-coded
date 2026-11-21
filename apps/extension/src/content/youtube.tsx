@@ -42,7 +42,7 @@ import { DownloadedControl } from "../ui/DownloadedMark";
 import { SaveControl } from "../ui/SaveControl";
 import { SubtitlesControl } from "../ui/SubtitlesControl";
 import { WatchingControl } from "../ui/WatchingControl";
-import { paintCss } from "../seekLook";
+import { fillCss, paintCss } from "../seekLook";
 import { comesBackTo, engineWanted, sourceOf, toggledSource, type SubtitleSource } from "../subtitles";
 import { createLineSource, lineSkipTo } from "../transcribe/lineSource";
 import { linesOf } from "../transcribe/lines";
@@ -277,6 +277,8 @@ const proofreader = createProofreader(transcriber, () => lines.transcriptLines()
 const showingOver = cell(false);
 /** The account's cards taken from this video, each its clip's stretch in ms and its words: marked on the seek bar. */
 const carded = cell<readonly VideoCard[]>([]);
+/** The dictionary's word the open drawer is adding a card for, until the card is in: the subtitles light it wherever else it's said. */
+const adding = cell<string | null>(null);
 /** Whether the pointer is on the player's seek bar, or on what Panki draws over it: the cards' words rise. */
 const onBar = cell(false);
 /** How far above the seek bar the pointer counts as on it, as the marks last said (`SeekMark` → `REACH`). */
@@ -1968,8 +1970,11 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
   // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`): by their stage, but where a
   // card was added from (its clip in this video), in the subtitles' own Where you added a card colour; the word picked in its own colour.
   const known = useKnown();
-  const { added, pick } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
+  const { added, pick, same: sameColour, sameStrength } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
   const videoCards = useSyncExternalStore(carded.subscribe, carded.get);
+  // The word the drawer is adding, wherever else this row says it.
+  const addingWord = useSyncExternalStore(adding.subscribe, adding.get);
+  const same = addingWord !== null ? { at: (i: number) => tokens[i]?.term === addingWord, fill: fillCss(sameColour, sameStrength) } : null;
   const tintAt = (i: number) => {
     const token = tokens[i];
     if (!token) return tintOf(knownCssOf(known, {}));
@@ -2083,6 +2088,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
       look={look}
       known={knownHere}
       pickColour={paintCss(pick)}
+      same={same}
       onPick={(span) => {
         const own = charsOf(tokens, span);
         if (own) onTake({ from: at + own.from, to: at + own.to });
@@ -2476,6 +2482,12 @@ function App() {
   const endDragRef = useRef(endDrag);
   endDragRef.current = endDrag;
   const [taking, setTaking] = useState<Taking | null>(null);
+  /** The drawer's word as it last said (`Panel`'s `onWord`). */
+  const [drawerWord, setDrawerWord] = useState<string | null>(null);
+  const stillAdding = taking !== null && taking.of !== "nothing" && !taking.added;
+  useEffect(() => {
+    adding.set(stillAdding ? drawerWord : null);
+  }, [stillAdding, drawerWord]);
   const [turn, setTurn] = useState(0);
   // Where the words that are in the decks are said, for the seek bar: read off Panki's transcript, only while a mark that
   // shows them is (Words that are in your decks, or Suspended cards or Flagged cards, which have where such a card's
@@ -3154,6 +3166,7 @@ function App() {
           clip={null}
           arrives={taking.fresh}
           onClose={close}
+          onWord={setDrawerWord}
         />
       );
     }
@@ -3220,6 +3233,7 @@ function App() {
           void refreshKnown();
         }}
         onTouching={holdForAi}
+        onWord={setDrawerWord}
       />
     );
   }

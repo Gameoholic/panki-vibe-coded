@@ -1,4 +1,4 @@
-/** @panki How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`). */
+/** @panki How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`, `FILL_STRENGTHS`, `fillCss`). */
 import { z } from "zod";
 import type { Swatch } from "@web/components/Swatches";
 import { PALETTE } from "@web/palette";
@@ -47,6 +47,13 @@ export const MARK_SIZES: Record<MarkSize, { name: string; px: number }> = {
   thick: { name: "Thick", px: 8 },
 };
 export const MARK_SIZE_IDS = MarkSize.options;
+
+/** How strongly a word is filled with its colour, in percent: the steps offered beside a colour (Same word color's). */
+export const FILL_STRENGTHS = [10, 15, 25, 35, 45, 60, 80] as const;
+export const FillStrength = z.number().int().min(1).max(100);
+export type FillStrength = z.infer<typeof FillStrength>;
+/** A colour as a word's fill at a strength, in CSS. */
+export const fillCss = (paint: MarkPaint, strength: FillStrength): string => `color-mix(in srgb, ${paintCss(paint)} ${strength}%, transparent)`;
 
 export const MarkLook = z.object({ shown: z.boolean(), colour: MarkPaint, size: MarkSize });
 export type MarkLook = z.infer<typeof MarkLook>;

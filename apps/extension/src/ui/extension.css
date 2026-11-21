@@ -112,25 +112,19 @@
   }
 }
 /* The word picked, in the pick's colour (`Line`'s `pickColour` as `--pick`: on a video's subtitles the viewer's Picked
-   word colour, so it's told apart from the words in the decks by the colours set for each; Panki blue elsewhere): filled with it as the words in the decks are tinted, a little stronger, and edged in it whole,
-   its letters as they are, so any colour picked reads. */
+   word colour, so it's told apart from the words in the decks by the colours set for each; Panki blue elsewhere):
+   filled with it as the words in the decks are tinted, a little stronger, and nothing more, under the player, in the
+   panel and over the video alike; its letters as they are, so any colour picked reads. */
 .btn.tok[aria-pressed="true"],
 .line.is-small .btn.tok[aria-pressed="true"] {
   background: color-mix(in srgb, var(--pick, var(--accent)) 45%, transparent);
-  box-shadow: inset 0 0 0 2px var(--pick, var(--accent));
 }
 /* Where the video is: the words being said this moment carry a mark under them, like the ribbon in a book. It's the
-   place to look after the video was put somewhere else, or while a clip is played back. On a picked word the mark is
-   drawn in the pick's colour, under its edge. */
+   place to look after the video was put somewhere else, or while a clip is played back. */
 .btn.tok.is-now {
   box-shadow:
     inset 0 0 0 1px var(--line),
     inset 0 -3px 0 var(--accent);
-}
-.btn.tok.is-now[aria-pressed="true"] {
-  box-shadow:
-    inset 0 0 0 2px var(--pick, var(--accent)),
-    inset 0 -3px 0 var(--pick, var(--accent));
 }
 .tok-gap {
   white-space: pre-wrap;
@@ -146,6 +140,12 @@
 }
 .btn.tok.is-known.is-flagged:not([aria-pressed="true"]) {
   background: var(--known-flagged);
+}
+/* The word being added, where else it's said (`Line`'s `same` as `--same`: the viewer's Same word colour at its own
+   strength, `fillCss`): filled as the picked word is; over a word's decks tint while the drawer is open, so it comes
+   after those. */
+.btn.tok.is-same:not([aria-pressed="true"]) {
+  background: var(--same);
 }
 /* At the far end of the line's head: Transcribe or Stop, and a clip taken off the video itself, for when there are no
    words to press. */

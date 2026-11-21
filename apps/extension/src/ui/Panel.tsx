@@ -541,6 +541,8 @@ type Props = {
   onAdded?: () => void;
   /** Panki AI is working on the card, or no longer: a video's page holds the clip's ends and the picked words still meanwhile. */
   onTouching?: (on: boolean) => void;
+  /** The dictionary's word the card is for, as it changes (null before it's known, and once the drawer goes): a video's page lights it wherever else the subtitles say it. */
+  onWord?: (term: string | null) => void;
 };
 
 const nothing = () => undefined;
@@ -575,7 +577,7 @@ function whereIs(text: string, words: string, near: number): { from: number; to:
  * written exactly so, endings undone). Which of their words it is (when there's more than one) and, if the meanings
  * are picked by hand, which meanings, are chosen just above the first such field; anything filled can be typed over.
  */
-export function Panel({ capture, picked, onPick, prefer = null, clip, arrives, onClose, onAdded, onTouching }: Props) {
+export function Panel({ capture, picked, onPick, prefer = null, clip, arrives, onClose, onAdded, onTouching, onWord }: Props) {
   // Minted once for the panel, so pressing Add again after a lost connection is the same card, not a second one.
   const [cardId] = useState(uuid);
   const [state, setState] = useState<State | null>(lastKnown);
@@ -764,6 +766,11 @@ export function Panel({ capture, picked, onPick, prefer = null, clip, arrives, o
   const sentence = written ?? capture.sentence;
   /** The dictionary's word this is: the one chosen, or the first found. */
   const chosen = found?.find((f) => wordKey(f) === entry) ?? found?.[0] ?? null;
+  const chosenTerm = chosen?.term ?? null;
+  useEffect(() => {
+    onWord?.(chosenTerm);
+    return () => onWord?.(null);
+  }, [chosenTerm, onWord]);
   const meaningField = fieldOf("dictMeaning");
   /** The word's meanings, each as the field writes it (its glosses joined by "; "), in the dictionary's order: `{Meaning}`'s. */
   const dictMeanings = chosen ? chosen.senses.map((sense) => glossaryText(sense.glossary)) : [];

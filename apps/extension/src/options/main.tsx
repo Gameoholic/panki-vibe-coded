@@ -23,7 +23,7 @@ import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
 import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
-import { MARK_SWATCHES, paintOf } from "../seekLook";
+import { FILL_STRENGTHS, MARK_SWATCHES, paintOf } from "../seekLook";
 import { askOpenTypes } from "../messages";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, lookByOf, profileWords, readStore, renameProfile, sameProfile, shortSkipOf, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
@@ -339,6 +339,7 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
 // Whether transcribing starts by itself is the account's automations (Panki's Settings → Automations, and the strip
 // menu's switches for them); what it does while paused is an admin's, in Panki's Settings → Admin.
 const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
+const FILL_STRENGTH_OPTIONS = FILL_STRENGTHS.map((id) => ({ id, label: `${id}%` }));
 // What the choice made does, under it: the choice alone doesn't say.
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
@@ -403,6 +404,34 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
             }}
           />
         }
+      />
+      {/* While the drawer is open, the word it's adding wherever else the subtitles say it: its colour and how strongly it fills them, side by side. */}
+      <Setting
+        id="same-colour"
+        label="Same word color"
+        control={
+          <span className="setting-pair">
+            <Swatches
+              id="same-colour"
+              swatches={MARK_SWATCHES}
+              value={store.sameColour}
+              disabled={off}
+              onChange={(value) => {
+                const sameColour = paintOf(value);
+                if (sameColour) void writeStore({ sameColour }).then(onChanged);
+              }}
+            />
+            <Dropdown
+              id="same-strength"
+              label="Same word strength"
+              options={FILL_STRENGTH_OPTIONS}
+              value={store.sameStrength}
+              disabled={off}
+              onChange={(sameStrength) => void writeStore({ sameStrength }).then(onChanged)}
+            />
+          </span>
+        }
+        why="Highlights the word you're adding wherever else it's said in the video, while its card is open."
       />
       {/* A word in the subtitles where you added a card for it, the same word elsewhere tinted by its stage; the seek bar's mark of the same has its own. */}
       <Setting

@@ -6,7 +6,7 @@ import { Binding, HOVER_DELAY, HoverDelay, LookKey, LookWhere, WhileOpen } from 
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
-import { DEFAULT_SEEK_LOOK, MarkPaint, SeekLook } from "./seekLook";
+import { DEFAULT_SEEK_LOOK, FillStrength, MarkPaint, SeekLook } from "./seekLook";
 import { sourceOf, sourceShownOf } from "./subtitles";
 import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
@@ -154,6 +154,10 @@ const Stored = z.object({
   seekLook: SeekLook.catch(DEFAULT_SEEK_LOOK),
   /** The picked word's colour in Panki's subtitles (`transcribe/prefs.ts` → `pick`), set on the options page (Videos → Panki panel). */
   pickColour: MarkPaint.catch(DEFAULT_PREFS.pick),
+  /** The colour the picked word is lit in, fainter, wherever else it's said while its card is being added (`transcribe/prefs.ts` → `same`), set on the options page (Videos → Panki panel). */
+  sameColour: MarkPaint.catch(DEFAULT_PREFS.same),
+  /** How strongly Same word color fills them, in percent (`transcribe/prefs.ts` → `sameStrength`), set beside it. */
+  sameStrength: FillStrength.catch(DEFAULT_PREFS.sameStrength),
   /** A subtitle word's colour where you added a card for it (`transcribe/prefs.ts` → `added`), set on the options page (Videos → Panki panel). */
   addedColour: MarkPaint.catch(DEFAULT_PREFS.added),
   // A browser that kept `transcribeMode` (the mode picked in the strip's menu: Full, Live or Hybrid) keeps it unread:
@@ -265,6 +269,8 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   markOver: store.markOver,
   seek: store.seekLook,
   pick: store.pickColour,
+  same: store.sameColour,
+  sameStrength: store.sameStrength,
   added: store.addedColour,
 });
 

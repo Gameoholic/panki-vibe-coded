@@ -109,6 +109,8 @@ type Props = {
   known?: { at: (at: number) => KnownAs | null; tintAt: (at: number) => string; suspendedColour: string; flaggedColour: string } | null;
   /** The picked word's colour, as CSS: the viewer's Picked word colour on a video's subtitles; Panki blue without one. */
   pickColour?: string | null;
+  /** Which words are the word being added, said here too (`at`), and their fill as CSS (`fillCss`): the drawer's word, while it's open. */
+  same?: { at: (at: number) => boolean; fill: string } | null;
   /** Which words Panki AI's Proofread edited (AI step 6): lit in the accent with the spark after them, under the player and over the video. */
   edited?: ((at: number) => boolean) | null;
 };
@@ -117,7 +119,7 @@ type Props = {
 const KNOWN_CLASS: Record<KnownAs | "none", string> = { none: "", known: "is-known", suspended: "is-known is-suspended", flagged: "is-known is-flagged" };
 
 /** A line as words to press: one press picks a word, a press on the word beside it widens the pick to both. */
-export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null, known = null, pickColour = null, edited = null }: Props) {
+export function Line({ tokens, picked, onPick, now = null, small = false, look = null, onFix = null, known = null, pickColour = null, same = null, edited = null }: Props) {
   const text = tokens.map((token) => token.text).join("");
   const within = (span: Span | null, i: number) => span !== null && i >= span[0] && i <= span[1];
   const root = useRef<HTMLDivElement>(null);
@@ -157,6 +159,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
         {
           ...(known ? { "--known-suspended": known.suspendedColour, "--known-flagged": known.flaggedColour } : {}),
           ...(pickColour ? { "--pick": pickColour } : {}),
+          ...(same ? { "--same": same.fill } : {}),
         } as CSSProperties
       }
       onPointerMove={(e) => onMove(e.target, e)}
@@ -171,7 +174,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
           <Button
             key={token.start}
             data-at={i}
-            className={`tok ${within(now, i) ? "is-now" : ""} ${KNOWN_CLASS[known?.at(i) ?? "none"]} ${edited?.(i) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}
+            className={`tok ${within(now, i) ? "is-now" : ""} ${KNOWN_CLASS[known?.at(i) ?? "none"]} ${same?.at(i) ? "is-same" : ""} ${edited?.(i) ? "is-ai" : ""}`.replace(/\s+/g, " ").trim()}
             aria-pressed={within(picked, i)}
             style={known?.at(i) === "known" ? ({ "--known": known.tintAt(i) } as CSSProperties) : undefined}
             onClick={(e) => {
