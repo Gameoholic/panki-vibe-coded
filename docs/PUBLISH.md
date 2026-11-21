@@ -35,6 +35,7 @@
 - Support several languages, but only ones defined from the start: the developer chooses which, after testing them and making sure there are dictionaries for all, a Forvo-like alternative, and transcription that works.
 - Alternatives to Forvo and the like that aren't language-specific. Maybe AI features (ElevenLabs) reading words out loud.
 - Caching Forvo might be a legal problem if they notice (they forbid caching). Maybe not; cross that bridge if it comes.
+- **The website must be made non-specific to Japanese.** It will support other languages, so it's unclear how relevant hardcoding things like Reading is, and other such things. Maybe it should be more dynamic and less statically typed; if needed, look into it.
 
 ### Anki
 - Import and export to Anki, as well as possible.
