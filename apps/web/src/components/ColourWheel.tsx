@@ -1,4 +1,4 @@
-/** @panki A colour of one's own, picked on a wheel (`ColourWheel`). Never the browser's `<input type="color">`. */
+/** @panki A colour of one's own, picked on a wheel, and how strongly it's drawn (`ColourWheel`, `WheelStrength`). Never the browser's `<input type="color">`. */
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { TextField } from "./TextField";
 
@@ -33,24 +33,37 @@ function typedHex(text: string): string | null {
 }
 
 const clamp = (x: number) => Math.max(0, Math.min(1, x));
-/** How far an arrow key turns the hue (degrees), and moves the saturation or the value. */
-const STEP = { hue: 5, share: 0.05 } as const;
+/** How far an arrow key turns the hue (degrees), and moves the saturation or the value, or the strength (percent). */
+const STEP = { hue: 5, share: 0.05, strength: 5 } as const;
+/** The faintest a colour's strength goes, in percent: below it a mark is gone. */
+const STRENGTH_MIN = 5;
+const clampStrength = (n: number) => Math.round(Math.max(STRENGTH_MIN, Math.min(100, n)));
+
+/** How strongly the colour is drawn, in percent, set under its hex: kept as it's let go (`onPick`), apart from the colour, so a palette colour stays the palette's. */
+export type WheelStrength = { value: number; onPick: (value: number) => void };
 
 /**
  * A colour of one's own, picked on a wheel: around it the hue, out from its middle how vivid, and under it a
- * line from dark to bright; or typed as a hex. Seen as it's moved, kept as it's let go (`onPick`), so a drag isn't a
- * hundred writes. Never the browser's own colour picker. The arrow keys move whichever has the focus.
+ * line from dark to bright; or typed as a hex; and, given a `strength`, how strongly it's drawn, a line under the hex.
+ * Seen as it's moved, kept as it's let go (`onPick`), so a drag isn't a hundred writes. Never the browser's own colour
+ * picker. The arrow keys move whichever has the focus.
  */
-export function ColourWheel({ id, start, onPick }: { id: string; start: string; onPick: (hex: string) => void }) {
+export function ColourWheel({ id, start, strength, onPick }: { id: string; start: string; strength?: WheelStrength; onPick: (hex: string) => void }) {
   const [hsv, setHsv] = useState(() => hsvOf(start));
   const [typed, setTyped] = useState(start.toUpperCase());
+  /** The strength while its line is held; the kept one otherwise. */
+  const [drawn, setDrawn] = useState<number | null>(null);
   const now = useRef(hsv);
   now.current = hsv;
+  const nowStrength = useRef<number | null>(null);
+  nowStrength.current = drawn;
   const disc = useRef<HTMLDivElement>(null);
   const line = useRef<HTMLDivElement>(null);
-  const held = useRef<"disc" | "line" | null>(null);
+  const strengthLine = useRef<HTMLDivElement>(null);
+  const held = useRef<"disc" | "line" | "strength" | null>(null);
   const hex = hexOf(hsv);
   const bright = hexOf({ ...hsv, v: 1 });
+  const shownStrength = drawn ?? strength?.value ?? 100;
 
   function show(next: Hsv) {
     setHsv(next);
@@ -69,24 +82,45 @@ export function ColourWheel({ id, start, onPick }: { id: string; start: string; 
     if (!box || box.width === 0) return;
     show({ ...now.current, v: clamp((x - box.left) / box.width) });
   }
-  const press = (which: "disc" | "line") => (e: PointerEvent<HTMLDivElement>) => {
+  function onStrengthLine(x: number) {
+    const box = strengthLine.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return;
+    setDrawn(clampStrength(((x - box.left) / box.width) * 100));
+  }
+  const press = (which: "disc" | "line" | "strength") => (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     e.currentTarget.focus({ preventScroll: true });
     held.current = which;
     if (which === "disc") onDisc(e.clientX, e.clientY);
-    else onLine(e.clientX);
+    else if (which === "line") onLine(e.clientX);
+    else onStrengthLine(e.clientX);
   };
   const move = (e: PointerEvent<HTMLDivElement>) => {
     if (held.current === "disc") onDisc(e.clientX, e.clientY);
     else if (held.current === "line") onLine(e.clientX);
+    else if (held.current === "strength") onStrengthLine(e.clientX);
   };
   const letGo = () => {
     if (held.current === null) return;
+    const was = held.current;
     held.current = null;
-    onPick(hexOf(now.current));
+    if (was !== "strength") {
+      onPick(hexOf(now.current));
+      return;
+    }
+    const kept = nowStrength.current;
+    setDrawn(null);
+    if (strength && kept !== null && kept !== strength.value) strength.onPick(kept);
   };
+  function keyedStrength(e: KeyboardEvent<HTMLDivElement>) {
+    if (!strength) return;
+    const by = { ArrowLeft: -STEP.strength, ArrowRight: STEP.strength }[e.key];
+    if (by === undefined) return;
+    e.preventDefault();
+    strength.onPick(clampStrength(strength.value + by));
+  }
   function keyed(e: KeyboardEvent<HTMLDivElement>, which: "disc" | "line") {
     const was = now.current;
     const next =
@@ -158,6 +192,33 @@ export function ColourWheel({ id, start, onPick }: { id: string; start: string; 
             onPick(picked);
           }}
         />
+        {strength ? (
+          <div className="colour-strength">
+            <span className="field-label-row">
+              <span className="field-label" id={`${id}-strength-label`}>
+                Strength
+              </span>
+              <span className="colour-strength-value">{shownStrength}%</span>
+            </span>
+            <div
+              ref={strengthLine}
+              className="colour-line"
+              role="slider"
+              tabIndex={0}
+              aria-labelledby={`${id}-strength-label`}
+              aria-valuemin={STRENGTH_MIN}
+              aria-valuemax={100}
+              aria-valuenow={shownStrength}
+              style={{ background: `linear-gradient(90deg, transparent, ${hex})` }}
+              onPointerDown={press("strength")}
+              onPointerMove={move}
+              onLostPointerCapture={letGo}
+              onKeyDown={keyedStrength}
+            >
+              <span className="colour-knob" style={{ left: `${shownStrength}%`, top: "50%", background: `color-mix(in srgb, ${hex} ${shownStrength}%, var(--surface))` }} />
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

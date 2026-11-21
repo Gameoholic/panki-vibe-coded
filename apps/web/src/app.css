@@ -6189,27 +6189,6 @@ mark.sub-blur {
   font-weight: 600;
   color: var(--muted);
 }
-/* How strongly the colour is drawn, inside the same control: a slider in the colour itself, its percent after it. */
-.swatch-strength {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.swatch-strength input[type="range"] {
-  width: 96px;
-  margin: 0;
-  accent-color: var(--swatch, var(--accent));
-}
-.swatch-strength input[type="range"]:disabled {
-  opacity: 0.5;
-}
-.swatch-strength-value {
-  min-width: 36px;
-  font-size: 13px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
 .btn.btn-ghost.swatch.is-own {
   background: conic-gradient(hsl(0 90% 60%), hsl(60 90% 60%), hsl(120 90% 55%), hsl(180 90% 55%), hsl(240 90% 65%), hsl(300 90% 62%), hsl(360 90% 60%));
 }
@@ -6287,6 +6266,22 @@ mark.sub-blur {
   cursor: pointer;
   touch-action: none;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 15%, transparent);
+}
+/* How strongly the colour is drawn, under its hex: named as the hex is, its percent at the right, a line from nothing to the colour. */
+.colour-strength {
+  display: grid;
+  gap: 8px;
+}
+.colour-strength .field-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.colour-strength-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
 }
 /* The stages of a type that's only for looking at: number, name, wait, nothing to fill in. */
 .stage-lines {

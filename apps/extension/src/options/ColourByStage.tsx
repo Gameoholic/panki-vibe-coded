@@ -10,8 +10,8 @@ const WAYS = [
 
 /**
  * A colour by where cards stand, as a `Setting`'s control: Use stage's colour (each word in its highest card's stage's
- * colour, each card in its own) or Custom colour, and under it the palette, greyed while the stage's is used, its
- * strength set either way. The
+ * colour, each card in its own) or Custom colour, and under it the palette, greyed while the stage's is used; its
+ * strength, set in the palette's wheel, is the stages' colours' too. The
  * Highlight words that are in your decks panel, and the seek bar's Words that are in your decks and Where cards came
  * from marks, pick theirs with this.
  */
@@ -42,8 +42,8 @@ export function ColourByStage({
         swatches={MARK_SWATCHES}
         value={colour}
         disabled={disabled || byStage}
-        // The strength is the stages' colours' too, so it's set whichever way the colour goes.
-        strength={{ value: strength, disabled, onChange: onStrength }}
+        // The strength is the stages' colours' too.
+        strength={{ value: strength, onChange: onStrength }}
         onChange={(value) => {
           const paint = paintOf(value);
           if (paint) onColour(paint);

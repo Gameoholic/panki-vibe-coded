@@ -123,7 +123,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-20: Context, a Panki action in the Word pop-up and on a card: the sentence translated naturally, then what it means where it stands, the word itself left alone; at the end of an account's own order, ticked by no one's defaults (no migration).
 - 2026-11-21: Clear conversation out of the conversation's settings, its own trash button beside the settings button in the composer's row, a Tip and greyed with nothing to clear (the Word pop-up, the Card drawer, a card opened in a deck).
 - 2026-11-21: while the Card drawer is open on a video, the word it's adding is highlighted wherever else Panki's subtitles say it, in Same word color (the options page, beside Picked word color; Panki blue at 25% to begin with), until the card is in; the picked word itself is its Picked word color's fill alone everywhere, no edge in the panel or under the player ([architecture/dictionary.md](architecture/dictionary.md)).
-- 2026-11-21: every colour on the options page has a strength slider inside its own colour picker (the words in your decks, Suspended, Flagged, Picked word, Same word, Where you added a card, each seek bar mark), each starting at the strength it was drawn at ([architecture/dictionary.md](architecture/dictionary.md)).
+- 2026-11-21: every colour on the options page has a Strength line inside its own colour wheel, under Hex (the words in your decks, Suspended, Flagged, Picked word, Same word, Where you added a card, each seek bar mark), each starting at the strength it was drawn at ([architecture/dictionary.md](architecture/dictionary.md)).
 
 ## Under way
 

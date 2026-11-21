@@ -28,7 +28,7 @@ Paths from `apps/web/src/`.
 | CardList | `components/CardList.tsx` | Cards as rows (`CardList`), and a card's row wherever one is drawn, what a search found lit (`cardRowCells`). Never a second drawing of a card's row. |
 | CardPreview | `components/CardPreview.tsx` | A card seen as a review would show it, in a deck picked (`CardPreview`). |
 | ClipSubtitles | `components/ClipSubtitles.tsx` | A clip's subtitles on a card, following it as it plays (`ClipSubtitles`). Never a second band. |
-| ColourWheel | `components/ColourWheel.tsx` | A colour of one's own, picked on a wheel (`ColourWheel`). Never the browser's `<input type="color">`. |
+| ColourWheel | `components/ColourWheel.tsx` | A colour of one's own, picked on a wheel, and how strongly it's drawn (`ColourWheel`, `WheelStrength`). Never the browser's `<input type="color">`. |
 | DeckList | `components/DeckList.tsx` | Decks as rows with their counts (`DeckList`). |
 | DeckNameForm | `components/DeckNameForm.tsx` | A deck's name, typed and validated (`DeckNameForm`). |
 | Door | `components/Door.tsx` | A home door (`Door`, `DoorSpec`, `DoorWay`): one way in, or two in rows (`rows`), each with how many there are. The board draws them. |
