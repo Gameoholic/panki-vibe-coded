@@ -479,8 +479,12 @@ test("The trial's pick: each action on trial the least used of its set, a random
   assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain", "explainContext"], {}, () => 0), { explain: "explainPebble", explainContext: "contextMitten" });
   assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain"], {}, () => 0.99), { explain: "explainLadder" });
   // The least used goes next.
-  const uses = { explainPebble: 2, explainTeapot: 2, explainLantern: 1, explainWalrus: 2, explainLadder: 2 };
-  assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain"], uses, () => 0.5), { explain: "explainLantern" });
+  const uses = { explainPebble: 2, explainTeapot: 1, explainLantern: 2, explainWalrus: 2, explainLadder: 2 };
+  assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain"], uses, () => 0.5), { explain: "explainTeapot" });
+  // One taken out is never picked, however little it went.
+  const lanternLeast = { explainPebble: 3, explainTeapot: 3, explainLantern: 0, explainWalrus: 3, explainLadder: 3 };
+  for (const at of [0, 0.3, 0.6, 0.99]) assert.notEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain"], lanternLeast, () => at).explain, "explainLantern");
+  assert.notEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explainContext"], { contextKettle: 0, contextMitten: 1, contextAcorn: 1, contextButton: 1, contextHarbor: 1 }, () => 0).explainContext, "contextKettle");
   // Explain the account edited is its own words: nothing on trial there.
   const edited: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: [{ ...AI_ACTIONS.explain, words: "Mine.", requires: [...AI_ACTIONS.explain.requires], leaves: [] }] };
   assert.deepEqual(trialPickFor(edited, ["explain"], {}), {});

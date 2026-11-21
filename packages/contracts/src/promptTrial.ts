@@ -29,6 +29,8 @@ export const TRIAL_SETS: Readonly<Record<"explain" | "explainContext", readonly 
   explain: ["explainPebble", "explainTeapot", "explainLantern", "explainWalrus", "explainLadder"],
   explainContext: ["contextMitten", "contextAcorn", "contextKettle", "contextButton", "contextHarbor"],
 };
+/** Wordings taken out of the rotation, as the results so far put them last: never picked again, still in the results. */
+export const TRIAL_OUT: ReadonlySet<TrialActionId> = new Set<TrialActionId>(["explainLantern", "contextKettle"]);
 export type TrialBase = keyof typeof TRIAL_SETS;
 export const TRIAL_BASES: readonly TrialBase[] = ["explain", "explainContext"];
 const TrialVariant = z.enum(TRIAL_ACTION_IDS);

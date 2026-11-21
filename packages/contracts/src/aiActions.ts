@@ -16,7 +16,7 @@ import {
 import { adminPromptOf, type AdminPromptPlaceId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 import { PIECE_MAX, PromptPieces, Said } from "./prompt";
-import { TRIAL_ACTION_IDS, TRIAL_BASES, TRIAL_SETS, TrialPick, isTrialAction, type TrialActionId, type TrialBase, type TrialRating, type TrialResults } from "./promptTrial";
+import { TRIAL_ACTION_IDS, TRIAL_BASES, TRIAL_OUT, TRIAL_SETS, TrialPick, isTrialAction, type TrialActionId, type TrialBase, type TrialRating, type TrialResults } from "./promptTrial";
 import { RuleCall } from "./rules";
 import { MEANINGS_MAX, TouchUpNow, numberedSubtitles, subtitleLinesOf, type SubtitleLine } from "./touchUp";
 import { VALUE_MAX } from "./type";
@@ -123,7 +123,8 @@ const trial = (id: TrialActionId, of: "Explain" | "Context", codename: string, w
  * `restorableOf` skip `isTrialAction`); the composer shows plain Explain and Context. A message in the Word pop-up with
  * Explain or Context ticked (Panki's as it comes, never an account's edited copy) goes with one wording of that set,
  * picked by the server the first time it's sent (`routes/ai.ts` → `/word`, `trialPickFor`: the least used so far, a
- * random one among ties, the control among them) and carried with it after (`ExplainSend.trial`, `withTrial`), so a
+ * random one among ties, the control among them, never one of `TRIAL_OUT`: Lantern and Kettle, last in the first
+ * results, taken out so the rest gather ratings sooner, still in the results) and carried with it after (`ExplainSend.trial`, `withTrial`), so a
  * later message rebuilds the first prompt as it went. Blind: the bubble and Details name "Explain" / "Context" (Details'
  * prompt has the words that went). Each answer that went with a wording is a use, kept with its pick, and under it a
  * quiet thumb up and thumb down (`TrialThumbs`), one press, again to take it back; uses and ratings are rows of the
@@ -720,13 +721,13 @@ export function withTrial(book: AccountActions, lit: readonly AiAction[], pick: 
 }
 /**
  * The wordings for a message's actions on trial: for each, the least used of its set so far (`uses`, by wording), a
- * random one among those tied, so they even out. Empty for a message with none on trial.
+ * random one among those tied, so they even out; one taken out (`TRIAL_OUT`) never. Empty for a message with none on trial.
  */
 export function trialPickFor(book: AccountActions, actions: readonly string[], uses: Readonly<Record<string, number>>, random: () => number = Math.random): TrialPick {
   const pick: TrialPick = {};
   for (const base of TRIAL_BASES) {
     if (!actions.includes(base) || !onTrial(book, base)) continue;
-    const set = TRIAL_SETS[base];
+    const set = TRIAL_SETS[base].filter((id) => !TRIAL_OUT.has(id));
     const least = Math.min(...set.map((id) => uses[id] ?? 0));
     const tied = set.filter((id) => (uses[id] ?? 0) === least);
     const chosen = tied[Math.min(tied.length - 1, Math.floor(random() * tied.length))];
