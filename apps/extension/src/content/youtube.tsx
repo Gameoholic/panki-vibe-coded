@@ -713,9 +713,19 @@ const listening = createListening({
  * While the Word pop-up is open on a word of Panki's subtitles (not the Panki panel's list), as While the Word pop-up
  * is open says (`lookSettings.ts` → `WhileOpen`): which word it's open on; for Pause before the next line, where to
  * pause (`until`: whichever comes first of the word's line's end and the next line's start) and where that line starts
- * (`from`); and whether it paused the video, so the video plays again as it closes.
+ * (`from`); whether it paused the video, so the video plays again as it lets go; whether it's holding at all (a pop-up
+ * opened on a subtitle's word, and not let go since); and whether the pointer is on Panki's subtitles (`onLine`). A
+ * pop-up closing isn't by itself what lets go: going from one word to the next closes one before the next opens. It
+ * lets go once no pop-up is open and the pointer has left the subtitles, or on Escape (`skipHold`, `lineLeft`).
  */
-const whileOpen: { id: string | null; until: number | null; from: number | null; paused: boolean } = { id: null, until: null, from: null, paused: false };
+const whileOpen: { holding: boolean; id: string | null; until: number | null; from: number | null; paused: boolean; onLine: boolean } = {
+  holding: false,
+  id: null,
+  until: null,
+  from: null,
+  paused: false,
+  onLine: false,
+};
 /**
  * How many frames ahead of `until` Pause before the next line pauses, so the frame that would draw the next line never
  * comes; a frame's length is `frameGap`, measured as the lines are followed, at the video's speed.
@@ -729,12 +739,15 @@ const LAND_BEFORE = 0.01;
 function popupShown(view: View | null) {
   const where = view?.pointed.where;
   if (!view || !where || where.of !== "line" || where.inPanel) {
-    if (whileOpen.id !== null) popupGone();
+    whileOpen.id = null;
+    // Closed with the pointer still on the subtitles (on its way to another word): held as it stands.
+    if (whileOpen.holding && !whileOpen.onLine) popupGone();
     return;
   }
   if (whileOpen.id === view.pointed.id) return;
-  // Another word while it's open: the line held and a pause made stand as they are.
-  const opening = whileOpen.id === null;
+  // Another word while it's held: the line held and a pause made stand as they are.
+  const opening = !whileOpen.holding;
+  whileOpen.holding = true;
   whileOpen.id = view.pointed.id;
   const how = localNow().look.whileOpen;
   if (how === "hold" && opening && video) {
@@ -742,10 +755,9 @@ function popupShown(view: View | null) {
     lines.refresh();
   }
   if (how === "pause" && opening && video && !video.paused) {
-    video.pause();
-    whileOpen.paused = true;
+    pauseForPopup(video);
   }
-  if (how === "pauseNext") {
+  if (how === "pauseNext" && !whileOpen.paused) {
     // The next line shows as soon as it starts, which can be before this one ends (lines cut from speech that runs on);
     // a line with no end yet pauses as the next would start.
     const line = lines.byId(where.lineId);
@@ -756,15 +768,30 @@ function popupShown(view: View | null) {
     // Opened on a line already past its end (still on screen a moment after its last word): paused where it is, never
     // put back.
     if (video && !video.paused && whileOpen.until !== null && video.currentTime >= whileOpen.until) {
-      video.pause();
-      whileOpen.paused = true;
       whileOpen.until = null;
+      pauseForPopup(video);
     }
     pauseAtLineEnd();
   }
 }
-/** The pop-up closed: the subtitles follow the video again, and a video it paused plays again. */
+/**
+ * The video paused for the pop-up: played again as it lets go, unless it was played by hand meanwhile (then it's the
+ * viewer's to pause or play, and a pause of theirs is never undone here).
+ */
+function pauseForPopup(player: HTMLVideoElement) {
+  player.pause();
+  whileOpen.paused = true;
+  player.addEventListener(
+    "play",
+    () => {
+      whileOpen.paused = false;
+    },
+    { once: true },
+  );
+}
+/** Lets go: the subtitles follow the video again, and a video it paused plays again. */
 function popupGone() {
+  whileOpen.holding = false;
   whileOpen.id = null;
   whileOpen.until = null;
   whileOpen.from = null;
@@ -776,6 +803,20 @@ function popupGone() {
     whileOpen.paused = false;
     if (video?.paused) void video.play().catch(() => undefined);
   }
+}
+/** The pointer on Panki's subtitles (a move over the rows under the player or the line over the video). */
+function lineEntered() {
+  whileOpen.onLine = true;
+}
+/** The pointer left Panki's subtitles: with no pop-up open, it lets go; one still open (the pointer gone into it) lets go as it closes. */
+function lineLeft() {
+  whileOpen.onLine = false;
+  if (whileOpen.holding && whileOpen.id === null) popupGone();
+}
+/** Escape: the pop-up closed on purpose, so it lets go wherever the pointer is. */
+function skipHold() {
+  whileOpen.onLine = false;
+  if (whileOpen.holding && listening.looker.view() === null) popupGone();
 }
 /**
  * Pause before the next line: the video coming within `PAUSE_LEAD_FRAMES` frames of `until` pauses there, once, and
@@ -789,9 +830,8 @@ function pauseAtLineEnd() {
   if (until === null || !video || video.paused) return;
   const lead = PAUSE_LEAD_FRAMES * frameGap * video.playbackRate;
   if (video.currentTime + lead < until) return;
-  video.pause();
-  whileOpen.paused = true;
   whileOpen.until = null;
+  pauseForPopup(video);
   if (video.currentTime >= until) video.currentTime = Math.max(whileOpen.from ?? 0, until - LAND_BEFORE);
 }
 /** Whether the line has its place under the player. Without one (a page with no room there, a player filling the screen) only the drawer shows, floating, and only while it has something to show. */
@@ -1984,6 +2024,8 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
     move(i, button, e) {
       const { popupOn, popupBy, drawerBy, delay } = opens();
       if (e.pointerType !== "mouse") return;
+      // On Panki's subtitles, While the Word pop-up is open holds while the pointer is here (`whileOpen`).
+      if (!inPanel) lineEntered();
       const pointed = i !== null && button ? pointedAt(i, button) : null;
       const popup = popupOn ? popupBy : "none";
       listening.pointedBy(
@@ -1997,6 +2039,9 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
         e,
       );
       if (popupOn) pointWith(listening.looker, popup, delay, e, pointed, { x: e.clientX, y: e.clientY });
+    },
+    leave() {
+      if (!inPanel) lineLeft();
     },
     under(i, button) {
       const { popupOn, popupBy, drawerBy, delay } = opens();
@@ -3760,6 +3805,8 @@ function listen() {
         modifierDown = null;
         return;
       }
+      // Escape closes the pop-up on purpose (`look.ts`, after this): While the Word pop-up is open lets go with it.
+      if (e.key === "Escape") skipHold();
       pageKey(e);
     },
     true,

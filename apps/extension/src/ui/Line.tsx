@@ -80,6 +80,8 @@ export type LineLook = {
    * on it.
    */
   under: (at: number | null, button: HTMLElement | null, e: PointerAt) => void;
+  /** The pointer really left the line (after `move` was told it's off every word). */
+  leave: () => void;
   /**
    * A press on word `at` (its button), with the keys held with it: true when it isn't a pick (the pop-up's to open or
    * keep, or bound to nothing), false when it's the Card drawer's, a pick.
@@ -159,7 +161,9 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
       }
       onPointerMove={(e) => onMove(e.target, e)}
       onPointerLeave={(e) => {
-        if (moved) look?.move(null, null, e);
+        if (!moved) return;
+        look?.move(null, null, e);
+        look?.leave();
       }}
     >
       {tokens.map((token, i) =>
