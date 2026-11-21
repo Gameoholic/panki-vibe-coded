@@ -77,7 +77,7 @@ Paths from `apps/web/src/`.
 | SpaceNotice | `components/SpaceNotice.tsx` | Saying the disk is nearly full (`SpaceNotice`). |
 | StreakEditor | `components/StreakEditor.tsx` | One streak's settings: name, Streak type, Count from, Conditions (`goals` in code) joined by and / or, in Settings and on its tile alike (`StreakEditor`). |
 | SubtitleStyleFields | `components/SubtitleStyleFields.tsx` | How subtitles look, as rows of settings (`SubtitleStyleFields`). Never a second set. |
-| Swatches | `components/Swatches.tsx` | A colour picked from the palette, or one of one's own (`Swatches`, `Swatch`, `hexOfCss`). Never a second row of swatches. |
+| Swatches | `components/Swatches.tsx` | A colour picked from the palette, or one of one's own, and how strongly it's drawn (`Swatches`, `Swatch`, `SwatchStrength`, `hexOfCss`). Never a second row of swatches. |
 | TextField | `components/TextField.tsx` | A labelled text field with its error bubble (`TextField`). |
 | TimeLeft | `components/TimeLeft.tsx` | About how long a review has left, beside its counts, its finish time on the clock pointed at or pressed (`TimeLeft`, `timeWords`). |
 | TimeStudying | `components/TimeStudying.tsx` | How long ago a review's session started, beside its counts, ticking; its start and the time spent studying in it pointed at or pressed (`TimeStudying`). |
@@ -239,7 +239,7 @@ Built of the web's own components (`@web/…`); these are what only the extensio
 | panki | `panki.ts` | Calling Panki from the extension (`panki`, `PankiError`). Never a second client. |
 | popupKinds | `popupKinds.ts` | The Word pop-up's layout in words: each part's name, what it's for, its choices (`PART_NAMES`, `PART_ABOUT`, `SHOW_OPTIONS`, `bandOf`). |
 | popupLayout | `popupLayout.ts` | How the Word pop-up is laid out, as kept, and the moves on it (`PopupLayout`, `popupLayoutOf`, `moveBodyPart`, `withMeanings`). |
-| seekLook | `seekLook.ts` | How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`, `FILL_STRENGTHS`, `fillCss`). |
+| seekLook | `seekLook.ts` | How the seek bar's marks look (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_SWATCHES`), and any colour at its strength (`FillStrength`, `atStrength`, `fillCss`). |
 | storage | `storage.ts` | What the extension keeps in the browser, and its profiles (`readStore`, `writeStore`, `forgetSignIn`, `Profile`, `activeProfile`). |
 | subtitles | `subtitles.ts` | Where a video's words come from, one registry, and the pick toggled off and back (`SUBTITLE_SOURCES`, `SubtitleSource`, `sourceOf`, `engineWanted`, `toggledSource`). |
 | proofreader | `transcribe/proofreader.ts` | Proofread and Find where the video ends on a video's page: runs, their calls, Undo (`createProofreader`, `ProofreadScope`, `ProofreadState`). Never a second way of proofreading. |

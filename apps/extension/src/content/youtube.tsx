@@ -1970,25 +1970,25 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
   // Words already in the cards, tinted, with the subtitles switch on (`capture/known.ts`): by their stage, but where a
   // card was added from (its clip in this video), in the subtitles' own Where you added a card colour; the word picked in its own colour.
   const known = useKnown();
-  const { added, pick, same: sameColour, sameStrength } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
+  const { added, addedStrength, pick, pickStrength, same: sameColour, sameStrength } = useSyncExternalStore(transcriber.subscribe, transcriber.state).prefs;
   const videoCards = useSyncExternalStore(carded.subscribe, carded.get);
   // The word the drawer is adding, wherever else this row says it.
   const addingWord = useSyncExternalStore(adding.subscribe, adding.get);
   const same = addingWord !== null ? { at: (i: number) => tokens[i]?.term === addingWord, fill: fillCss(sameColour, sameStrength) } : null;
   const tintAt = (i: number) => {
     const token = tokens[i];
-    if (!token) return tintOf(knownCssOf(known, {}));
+    if (!token) return tintOf(knownCssOf(known, {}), known.strength);
     const place = placeOf(at + token.start);
     const from = place ? cameFromHere(known, videoCards, token, Math.round(place.time * 1000)) : null;
-    return tintOf(from ? paintCss(added) : knownCssOf(known, token));
+    return from ? tintOf(paintCss(added), addedStrength) : tintOf(knownCssOf(known, token), known.strength);
   };
   const knownHere =
     known.subtitles && known.words.size > 0
       ? {
           at: (i: number) => knownAs(known, tokens[i] ?? {}),
           tintAt,
-          suspendedColour: tintOf(paintCss(known.suspendedColour)),
-          flaggedColour: tintOf(paintCss(known.flaggedColour)),
+          suspendedColour: tintOf(paintCss(known.suspendedColour), known.suspendedStrength),
+          flaggedColour: tintOf(paintCss(known.flaggedColour), known.flaggedStrength),
         }
       : null;
   /** A word of the row as something pointed at: looked up from its first letter on, through the end of the row. */
@@ -2087,7 +2087,7 @@ function Row({ text, at, chars, now, forced, onTake, placeOf, onFix = null, edit
       now={now ? spanOver(tokens, now.from - at, now.to - at) : null}
       look={look}
       known={knownHere}
-      pickColour={paintCss(pick)}
+      pickColour={fillCss(pick, pickStrength)}
       same={same}
       onPick={(span) => {
         const own = charsOf(tokens, span);

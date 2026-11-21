@@ -1,4 +1,4 @@
-/** @panki How the seek bar's marks look, the viewer's own (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_COLOURS`, `MARK_SIZES`, `MARK_SWATCHES`, `FILL_STRENGTHS`, `fillCss`). */
+/** @panki How the seek bar's marks look (`SeekLook`, `MarkLook`, `MarkPaint`, `MARK_SWATCHES`), and any colour at its strength (`FillStrength`, `atStrength`, `fillCss`). */
 import { z } from "zod";
 import type { Swatch } from "@web/components/Swatches";
 import { PALETTE } from "@web/palette";
@@ -48,14 +48,18 @@ export const MARK_SIZES: Record<MarkSize, { name: string; px: number }> = {
 };
 export const MARK_SIZE_IDS = MarkSize.options;
 
-/** How strongly a word is filled with its colour, in percent: the steps offered beside a colour (Same word color's). */
-export const FILL_STRENGTHS = [10, 15, 25, 35, 45, 60, 80] as const;
+/** How strongly a colour is drawn, in percent: set inside the colour's own picker (`Swatches`' strength), every colour setting its own. */
 export const FillStrength = z.number().int().min(1).max(100);
 export type FillStrength = z.infer<typeof FillStrength>;
-/** A colour as a word's fill at a strength, in CSS. */
-export const fillCss = (paint: MarkPaint, strength: FillStrength): string => `color-mix(in srgb, ${paintCss(paint)} ${strength}%, transparent)`;
+/** A colour written in CSS, drawn at a strength: as it is at 100, mixed with nothing below. */
+export const atStrength = (css: string, strength: FillStrength): string => (strength >= 100 ? css : `color-mix(in srgb, ${css} ${strength}%, transparent)`);
+/** How strongly a word in the decks is tinted to begin with, so the words stay readable on any page; Where you added a card's colour begins the same. */
+export const KNOWN_STRENGTH = 38;
+/** A mark's colour at a strength, in CSS. */
+export const fillCss = (paint: MarkPaint, strength: FillStrength): string => atStrength(paintCss(paint), strength);
 
-export const MarkLook = z.object({ shown: z.boolean(), colour: MarkPaint, size: MarkSize });
+/** A mark's look; its strength came after the rest, so a look kept before it is drawn whole, as it was. */
+export const MarkLook = z.object({ shown: z.boolean(), colour: MarkPaint, strength: FillStrength.catch(100), size: MarkSize });
 export type MarkLook = z.infer<typeof MarkLook>;
 
 /** When a card's words stand over its mark: while the pointer is on the bar, whenever the bar shows, or never. */
@@ -98,18 +102,18 @@ export const SeekLook = z.object({
   // Where the words that are in the decks are said, each tick in its word's stage's colour (`byStage`, as their
   // highlight is to begin with) or all in `colour`, with the cards' own settings for the words on pins over its ticks
   // (shown, thick, the words hidden to begin with); a look kept before any of them is given what it lacks.
-  known: WordsLook.extend({ byStage: z.boolean().default(true) }).default({ shown: true, byStage: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
+  known: WordsLook.extend({ byStage: z.boolean().default(true) }).default({ shown: true, byStage: true, colour: "green", strength: 100, size: "thick", words: "off", entrance: "sprout", click: "sentence" }),
   // The cards taken from the video that are suspended, apart from the rest, to be fixed from the video right away (a
   // new clip, a better example), with the cards' own settings:
   // thick, their words always standing, red to begin with; a look kept before it is given it.
-  suspended: WordsLook.default({ shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
+  suspended: WordsLook.default({ shown: true, colour: "red", strength: 100, size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
   // The cards taken from the video that are flagged (a card that wants more example sentences, say), apart from the
   // rest and over a suspended one, to be acted on from the video: thick, their words always standing, in a
   // highlighter's yellow to begin with; a look kept before it is given it.
-  flagged: WordsLook.default({ shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
+  flagged: WordsLook.default({ shown: true, colour: "yellow", strength: 100, size: "thick", words: "always", entrance: "sprout", click: "sentence" }),
   // Where the video's own content ends (`VideoEnd`), a tick across the bar with a grip to drag it: pink and medium to
   // begin with, a colour no other mark starts in; a look kept before it is given it.
-  videoEnd: MarkLook.default({ shown: true, colour: "pink", size: "medium" }),
+  videoEnd: MarkLook.default({ shown: true, colour: "pink", strength: 100, size: "medium" }),
 });
 export type SeekLook = z.infer<typeof SeekLook>;
 /** Which mark is which, by its key in `SeekLook`. */
@@ -129,20 +133,20 @@ export type ApartMarkId = (typeof APART_MARK_IDS)[number];
  * card's yellow never lies on a line of its own colour; a look already kept keeps the colours it has.
  */
 export const DEFAULT_SEEK_LOOK: SeekLook = {
-  transcript: { shown: true, colour: "white", size: "thin" },
-  cards: { shown: true, byStage: true, colour: "orange", size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
-  clip: { shown: true, colour: "accent", size: "medium" },
-  known: { shown: true, byStage: true, colour: "green", size: "thick", words: "off", entrance: "sprout", click: "sentence" },
-  suspended: { shown: true, colour: "red", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
-  flagged: { shown: true, colour: "yellow", size: "thick", words: "always", entrance: "sprout", click: "sentence" },
-  videoEnd: { shown: true, colour: "pink", size: "medium" },
+  transcript: { shown: true, colour: "white", strength: 100, size: "thin" },
+  cards: { shown: true, byStage: true, colour: "orange", strength: 100, size: "medium", words: "hover", entrance: "sprout", click: "sentence" },
+  clip: { shown: true, colour: "accent", strength: 100, size: "medium" },
+  known: { shown: true, byStage: true, colour: "green", strength: 100, size: "thick", words: "off", entrance: "sprout", click: "sentence" },
+  suspended: { shown: true, colour: "red", strength: 100, size: "thick", words: "always", entrance: "sprout", click: "sentence" },
+  flagged: { shown: true, colour: "yellow", strength: 100, size: "thick", words: "always", entrance: "sprout", click: "sentence" },
+  videoEnd: { shown: true, colour: "pink", strength: 100, size: "medium" },
 };
 
 /** The CSS variables the marks are drawn by (`extension.css` → `.seek`), written on the place that holds them. */
 export function seekVars(look: SeekLook): Record<string, string> {
   const vars: Record<string, string> = {};
   for (const id of ["transcript", "cards", "clip", "known", "suspended", "flagged", "videoEnd"] as const satisfies readonly SeekMarkId[]) {
-    vars[`--${id}-colour`] = paintCss(look[id].colour);
+    vars[`--${id}-colour`] = fillCss(look[id].colour, look[id].strength);
     vars[`--${id}-size`] = `${MARK_SIZES[look[id].size].px}px`;
   }
   return vars;

@@ -555,9 +555,11 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
             id="known-colour"
             byStage={store.knownByStage}
             colour={store.knownColour}
+            strength={store.knownStrength}
             disabled={!store.knownSubtitles && !store.knownPages}
             onByStage={(knownByStage) => void writeStore({ knownByStage }).then(onChanged)}
             onColour={(knownColour) => void writeStore({ knownColour }).then(onChanged)}
+            onStrength={(knownStrength) => void writeStore({ knownStrength }).then(onChanged)}
           />
         }
       />
@@ -571,6 +573,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
             swatches={MARK_SWATCHES}
             value={store.knownSuspendedColour}
             disabled={!store.knownSubtitles && !store.knownPages}
+            strength={{ value: store.knownSuspendedStrength, onChange: (knownSuspendedStrength) => void writeStore({ knownSuspendedStrength }).then(onChanged) }}
             onChange={(value) => {
               const knownSuspendedColour = paintOf(value);
               if (knownSuspendedColour) void writeStore({ knownSuspendedColour }).then(onChanged);
@@ -588,6 +591,7 @@ export function KnownWords({ store, onChanged }: { store: Stored; onChanged: () 
             swatches={MARK_SWATCHES}
             value={store.knownFlaggedColour}
             disabled={!store.knownSubtitles && !store.knownPages}
+            strength={{ value: store.knownFlaggedStrength, onChange: (knownFlaggedStrength) => void writeStore({ knownFlaggedStrength }).then(onChanged) }}
             onChange={(value) => {
               const knownFlaggedColour = paintOf(value);
               if (knownFlaggedColour) void writeStore({ knownFlaggedColour }).then(onChanged);

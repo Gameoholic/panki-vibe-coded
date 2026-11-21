@@ -94,7 +94,7 @@ function useLookups(): { dictionaries: DictionaryRecord[]; found: Record<WordId,
 }
 
 /** The tint a word in the decks gets on a page, in this browser's colour for it (`capture/known.ts`). */
-const knownTint = (store: Stored) => exampleTint({ byStage: store.knownByStage, colour: store.knownColour });
+const knownTint = (store: Stored) => exampleTint({ byStage: store.knownByStage, colour: store.knownColour, strength: store.knownStrength });
 
 // ---------- A news site
 

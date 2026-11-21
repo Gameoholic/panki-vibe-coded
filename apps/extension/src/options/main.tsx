@@ -23,7 +23,7 @@ import { Toggle } from "@web/components/Toggle";
 import { hostPattern, originOf } from "../address";
 import { AFTER_ADD, AFTER_ADD_IDS, CLIP_ROOM_MAX, SKIP_SECONDS_MAX, SKIP_SECONDS_MIN, type AfterAdd, type ShortSkip, type SkipKey } from "../modules";
 import { PankiError, panki, type Door } from "../panki";
-import { FILL_STRENGTHS, MARK_SWATCHES, paintOf } from "../seekLook";
+import { MARK_SWATCHES, paintOf } from "../seekLook";
 import { askOpenTypes } from "../messages";
 import { PROFILE_NAME_MAX, activeProfile, forgetProfile, forgetSignIn, lookByOf, profileWords, readStore, renameProfile, sameProfile, shortSkipOf, useProfile, writeStore, type Profile, type Stored } from "../storage";
 import { Rename } from "../ui/Rename";
@@ -338,9 +338,7 @@ function DefaultDeck({ decks, store, onChanged }: { decks: Deck[]; store: Stored
 
 // Whether transcribing starts by itself is the account's automations (Panki's Settings → Automations, and the strip
 // menu's switches for them); what it does while paused is an admin's, in Panki's Settings → Admin.
-const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));
-const FILL_STRENGTH_OPTIONS = FILL_STRENGTHS.map((id) => ({ id, label: `${id}%` }));
-// What the choice made does, under it: the choice alone doesn't say.
+const AFTER_ADD_OPTIONS = AFTER_ADD_IDS.map((id) => ({ id, label: AFTER_ADD[id] }));// What the choice made does, under it: the choice alone doesn't say.
 const AFTER_ADD_WHY: Record<AfterAdd, string> = {
   before: "Once a card from a video is added, the video plays again if it was playing when you started the card.",
   pause: "Once a card from a video is added, the video stays paused.",
@@ -398,6 +396,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
             swatches={MARK_SWATCHES}
             value={store.pickColour}
             disabled={off}
+            strength={{ value: store.pickStrength, onChange: (pickStrength) => void writeStore({ pickStrength }).then(onChanged) }}
             onChange={(value) => {
               const pickColour = paintOf(value);
               if (pickColour) void writeStore({ pickColour }).then(onChanged);
@@ -405,31 +404,22 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
           />
         }
       />
-      {/* While the drawer is open, the word it's adding wherever else the subtitles say it: its colour and how strongly it fills them, side by side. */}
+      {/* While the drawer is open, the word it's adding wherever else the subtitles say it, fainter than the pick to begin with. */}
       <Setting
         id="same-colour"
         label="Same word color"
         control={
-          <span className="setting-pair">
-            <Swatches
-              id="same-colour"
-              swatches={MARK_SWATCHES}
-              value={store.sameColour}
-              disabled={off}
-              onChange={(value) => {
-                const sameColour = paintOf(value);
-                if (sameColour) void writeStore({ sameColour }).then(onChanged);
-              }}
-            />
-            <Dropdown
-              id="same-strength"
-              label="Same word strength"
-              options={FILL_STRENGTH_OPTIONS}
-              value={store.sameStrength}
-              disabled={off}
-              onChange={(sameStrength) => void writeStore({ sameStrength }).then(onChanged)}
-            />
-          </span>
+          <Swatches
+            id="same-colour"
+            swatches={MARK_SWATCHES}
+            value={store.sameColour}
+            disabled={off}
+            strength={{ value: store.sameStrength, onChange: (sameStrength) => void writeStore({ sameStrength }).then(onChanged) }}
+            onChange={(value) => {
+              const sameColour = paintOf(value);
+              if (sameColour) void writeStore({ sameColour }).then(onChanged);
+            }}
+          />
         }
         why="Highlights the word you're adding wherever else it's said in the video, while its card is open."
       />
@@ -443,6 +433,7 @@ function Transcribing({ store, onChanged }: { store: Stored; onChanged: () => vo
             swatches={MARK_SWATCHES}
             value={store.addedColour}
             disabled={off}
+            strength={{ value: store.addedStrength, onChange: (addedStrength) => void writeStore({ addedStrength }).then(onChanged) }}
             onChange={(value) => {
               const addedColour = paintOf(value);
               if (addedColour) void writeStore({ addedColour }).then(onChanged);
@@ -852,7 +843,7 @@ function Options() {
           <div className="options-tab" hidden={tab !== "dictionary"}>
             {/* Word pop-up, the pop-up's layout (which shows the words in the decks marked, as set on the Decks tab), then the dictionaries it reads. */}
             <Looking store={store} onChanged={refresh} />
-            <PopupLayoutPanel kept={store.popupLayout} lookBy={lookByOf(store).popup} lookDelay={store.lookDelayMs} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour }) }} onSaved={refresh} />
+            <PopupLayoutPanel kept={store.popupLayout} lookBy={lookByOf(store).popup} lookDelay={store.lookDelayMs} dictionariesChanged={dictionariesChanged} known={{ on: store.knownPages, tint: exampleTint({ byStage: store.knownByStage, colour: store.knownColour, strength: store.knownStrength }) }} onSaved={refresh} />
             {/* The dictionaries are this browser's own: they work signed in or not (those kept on Panki only signed in). */}
             <Dictionaries onChanged={dictionariesChange} door={door} />
           </div>

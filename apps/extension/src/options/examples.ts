@@ -2,12 +2,13 @@
 import type { CalledCard } from "@panki/contracts";
 import { EXAMPLE_ANSWERS, IN_DECKS } from "@web/explainers/examples";
 import { tintOf } from "../capture/known";
-import { NEW_PAINT, paintCss, type MarkPaint } from "../seekLook";
+import { NEW_PAINT, paintCss, type FillStrength, type MarkPaint } from "../seekLook";
 import type { ExplainExamples } from "../ui/Explain";
 import type { CardsSource } from "../ui/Lookup";
 
-/** The example word's tint as this browser marks a word that's in the decks: its example stage's colour By stage, else the one colour chosen. */
-export const exampleTint = (known: { byStage: boolean; colour: MarkPaint }): string => tintOf(known.byStage ? (IN_DECKS.stage?.colour ?? paintCss(NEW_PAINT)) : paintCss(known.colour));
+/** The example word's tint as this browser marks a word that's in the decks: its example stage's colour By stage, else the one colour chosen, at its strength. */
+export const exampleTint = (known: { byStage: boolean; colour: MarkPaint; strength: FillStrength }): string =>
+  tintOf(known.byStage ? (IN_DECKS.stage?.colour ?? paintCss(NEW_PAINT)) : paintCss(known.colour), known.strength);
 
 /**
  * The options page's own ways of showing the Word pop-up at work, made of the examples' one home (the web's

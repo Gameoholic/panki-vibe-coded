@@ -111,13 +111,13 @@
     background: var(--surface);
   }
 }
-/* The word picked, in the pick's colour (`Line`'s `pickColour` as `--pick`: on a video's subtitles the viewer's Picked
-   word colour, so it's told apart from the words in the decks by the colours set for each; Panki blue elsewhere):
-   filled with it as the words in the decks are tinted, a little stronger, and nothing more, under the player, in the
-   panel and over the video alike; its letters as they are, so any colour picked reads. */
+/* The word picked, filled with the pick's colour (`Line`'s `pickColour` as `--pick`: on a video's subtitles the
+   viewer's Picked word colour at its strength, so it's told apart from the words in the decks by the colours set for
+   each; Panki blue elsewhere) and nothing more, under the player, in the panel and over the video alike; its letters
+   as they are, so any colour picked reads. */
 .btn.tok[aria-pressed="true"],
 .line.is-small .btn.tok[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--pick, var(--accent)) 45%, transparent);
+  background: var(--pick, color-mix(in srgb, var(--accent) 45%, transparent));
 }
 /* Where the video is: the words being said this moment carry a mark under them, like the ribbon in a book. It's the
    place to look after the video was put somewhere else, or while a clip is played back. */

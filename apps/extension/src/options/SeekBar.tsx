@@ -15,7 +15,7 @@ import {
   MARK_SWATCHES,
   PIN_ENTRANCES,
   PIN_ENTRANCE_IDS,
-  paintCss,
+  fillCss,
   paintOf,
   type CardWords,
   type MarkLook,
@@ -236,7 +236,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
             <h3 className="seek-group-title">
               <span
                 className={`seek-group-sample ${mark.shown ? "" : "is-off"}`.trim()}
-                style={{ background: (id === "known" || id === "cards") && look[id].byStage ? `linear-gradient(90deg, ${STAGE_RAMP.join(", ")})` : paintCss(mark.colour), height: `${MARK_SIZES[mark.size].px}px` }}
+                style={{ background: (id === "known" || id === "cards") && look[id].byStage ? `linear-gradient(90deg, ${STAGE_RAMP.join(", ")})` : fillCss(mark.colour, mark.strength), height: `${MARK_SIZES[mark.size].px}px` }}
                 aria-hidden="true"
               />
               {name}
@@ -251,9 +251,11 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
                     id={`seek-${id}-colour`}
                     byStage={look[id].byStage}
                     colour={mark.colour}
+                    strength={mark.strength}
                     disabled={off || !mark.shown}
                     onByStage={(byStage) => change(id, { byStage })}
                     onColour={(colour) => change(id, { colour })}
+                    onStrength={(strength) => change(id, { strength })}
                   />
                 ) : (
                   <Swatches
@@ -261,6 +263,7 @@ export function SeekBarPanel({ store, onChanged }: { store: Stored; onChanged: (
                     swatches={MARK_SWATCHES}
                     value={mark.colour}
                     disabled={off || !mark.shown}
+                    strength={{ value: mark.strength, onChange: (strength) => change(id, { strength }) }}
                     onChange={(value) => {
                       const colour = paintOf(value);
                       if (colour) change(id, { colour });

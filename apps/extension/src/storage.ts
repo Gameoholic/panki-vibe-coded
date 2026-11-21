@@ -6,7 +6,7 @@ import { Binding, HOVER_DELAY, HoverDelay, LookKey, LookWhere, WhileOpen } from 
 import { OptionsTab, type Local } from "./messages";
 import { AfterAdd, BoundKey, ClipRoom, DEFAULT_BAR, DEFAULT_MODULES, KeptBar, PanelView, PanelWidth, PillLayout, ResumeBack, ResumeHow, ResumeTimed, ShortSkip, SkipKey, SkipSeconds, pillLayoutOf, type BarLayout, type Modules } from "./modules";
 import { PopupLayout } from "./popupLayout";
-import { DEFAULT_SEEK_LOOK, FillStrength, MarkPaint, SeekLook } from "./seekLook";
+import { DEFAULT_SEEK_LOOK, FillStrength, KNOWN_STRENGTH, MarkPaint, SeekLook } from "./seekLook";
 import { sourceOf, sourceShownOf } from "./subtitles";
 import { DEFAULT_PREFS, TranscribeTrigger, type TranscribePrefs } from "./transcribe/prefs";
 
@@ -103,10 +103,14 @@ const Stored = z.object({
   /** Each word tinted in its highest card's stage's colour (New in its type's New colour, else its Default, Panki blue: `seekLook.ts` → `NEW_PAINT`), or all in `knownColour`. By stage to begin with. */
   knownByStage: z.boolean().catch(true),
   knownColour: MarkPaint.catch("green"),
+  /** How strongly the words are tinted, in percent, set inside the colour's picker; each colour here has its own. */
+  knownStrength: FillStrength.catch(KNOWN_STRENGTH),
   /** The words only suspended cards are, in a colour of their own; red to begin with, as their mark on the seek bar is. */
   knownSuspendedColour: MarkPaint.catch("red"),
+  knownSuspendedStrength: FillStrength.catch(KNOWN_STRENGTH),
   /** The words a flagged card is, in a colour of their own; a highlighter's yellow to begin with, as their mark on the seek bar is. */
   knownFlaggedColour: MarkPaint.catch("yellow"),
+  knownFlaggedStrength: FillStrength.catch(KNOWN_STRENGTH),
   /**
    * Where pointing at a word works. Every site, to begin with: on the video site at once (the extension is there
    * already), anywhere else once the browser has been asked and has allowed it, on the options page.
@@ -156,8 +160,10 @@ const Stored = z.object({
   pickColour: MarkPaint.catch(DEFAULT_PREFS.pick),
   /** The colour the picked word is lit in, fainter, wherever else it's said while its card is being added (`transcribe/prefs.ts` → `same`), set on the options page (Videos → Panki panel). */
   sameColour: MarkPaint.catch(DEFAULT_PREFS.same),
-  /** How strongly Same word color fills them, in percent (`transcribe/prefs.ts` → `sameStrength`), set beside it. */
+  /** How strongly each of these subtitle colours fills its words, in percent (`transcribe/prefs.ts`), set inside the colour's picker. */
+  pickStrength: FillStrength.catch(DEFAULT_PREFS.pickStrength),
   sameStrength: FillStrength.catch(DEFAULT_PREFS.sameStrength),
+  addedStrength: FillStrength.catch(DEFAULT_PREFS.addedStrength),
   /** A subtitle word's colour where you added a card for it (`transcribe/prefs.ts` → `added`), set on the options page (Videos → Panki panel). */
   addedColour: MarkPaint.catch(DEFAULT_PREFS.added),
   // A browser that kept `transcribeMode` (the mode picked in the strip's menu: Full, Live or Hybrid) keeps it unread:
@@ -269,9 +275,11 @@ export const prefsOf = (store: Stored): TranscribePrefs => ({
   markOver: store.markOver,
   seek: store.seekLook,
   pick: store.pickColour,
+  pickStrength: store.pickStrength,
   same: store.sameColour,
   sameStrength: store.sameStrength,
   added: store.addedColour,
+  addedStrength: store.addedStrength,
 });
 
 /**
@@ -340,7 +348,17 @@ const LOCAL: { [Part in keyof Local]: (store: Stored) => Local[Part] } = {
   source: (store) => sourceOf(store.subtitleSource),
   sourceOn: (store) => sourceShownOf(store.subtitleSourceOn !== "" ? store.subtitleSourceOn : store.subtitleSource),
   modules: modulesOf,
-  known: (store) => ({ subtitles: store.knownSubtitles, pages: store.knownPages, byStage: store.knownByStage, colour: store.knownColour, suspendedColour: store.knownSuspendedColour, flaggedColour: store.knownFlaggedColour }),
+  known: (store) => ({
+    subtitles: store.knownSubtitles,
+    pages: store.knownPages,
+    byStage: store.knownByStage,
+    colour: store.knownColour,
+    strength: store.knownStrength,
+    suspendedColour: store.knownSuspendedColour,
+    suspendedStrength: store.knownSuspendedStrength,
+    flaggedColour: store.knownFlaggedColour,
+    flaggedStrength: store.knownFlaggedStrength,
+  }),
   look: (store) => ({
     ...lookByOf(store),
     ...panelOpensOf(store),

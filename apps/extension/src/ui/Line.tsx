@@ -107,7 +107,7 @@ type Props = {
    * card's one for the line; none, and nothing is.
    */
   known?: { at: (at: number) => KnownAs | null; tintAt: (at: number) => string; suspendedColour: string; flaggedColour: string } | null;
-  /** The picked word's colour, as CSS: the viewer's Picked word colour on a video's subtitles; Panki blue without one. */
+  /** The picked word's fill, as CSS: the viewer's Picked word colour at its strength on a video's subtitles; Panki blue without one. */
   pickColour?: string | null;
   /** Which words are the word being added, said here too (`at`), and their fill as CSS (`fillCss`): the drawer's word, while it's open. */
   same?: { at: (at: number) => boolean; fill: string } | null;

@@ -6189,6 +6189,27 @@ mark.sub-blur {
   font-weight: 600;
   color: var(--muted);
 }
+/* How strongly the colour is drawn, inside the same control: a slider in the colour itself, its percent after it. */
+.swatch-strength {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.swatch-strength input[type="range"] {
+  width: 96px;
+  margin: 0;
+  accent-color: var(--swatch, var(--accent));
+}
+.swatch-strength input[type="range"]:disabled {
+  opacity: 0.5;
+}
+.swatch-strength-value {
+  min-width: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
 .btn.btn-ghost.swatch.is-own {
   background: conic-gradient(hsl(0 90% 60%), hsl(60 90% 60%), hsl(120 90% 55%), hsl(180 90% 55%), hsl(240 90% 65%), hsl(300 90% 62%), hsl(360 90% 60%));
 }

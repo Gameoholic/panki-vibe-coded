@@ -71,7 +71,7 @@ import { DownloadAbout, DownloadJob, DownloadRow, HoldEnd, KeptPiece, PIECE_BASE
 import { Binding, HoverDelay, LookWhere, WhileOpen } from "./lookSettings";
 import { Modules, PanelView, PanelWidth } from "./modules";
 import { PopupLayout } from "./popupLayout";
-import { MarkPaint } from "./seekLook";
+import { FillStrength, MarkPaint } from "./seekLook";
 
 /**
  * What the pieces of the extension say to each other. A page's script (the line under a player, the capture panel)
@@ -122,9 +122,19 @@ export type OptionsTab = z.infer<typeof OptionsTab>;
 
 /**
  * Words that are in your decks, as this browser marks them: in Panki's subtitles, on every page, and in which colours:
- * each by its stage's (`byStage`), or all in one (`colour`).
+ * each by its stage's (`byStage`), or all in one (`colour`); each colour at its own strength.
  */
-export const KnownLook = z.object({ subtitles: z.boolean(), pages: z.boolean(), byStage: z.boolean(), colour: MarkPaint, suspendedColour: MarkPaint, flaggedColour: MarkPaint });
+export const KnownLook = z.object({
+  subtitles: z.boolean(),
+  pages: z.boolean(),
+  byStage: z.boolean(),
+  colour: MarkPaint,
+  strength: FillStrength,
+  suspendedColour: MarkPaint,
+  suspendedStrength: FillStrength,
+  flaggedColour: MarkPaint,
+  flaggedStrength: FillStrength,
+});
 export type KnownLook = z.infer<typeof KnownLook>;
 
 /**

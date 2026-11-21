@@ -6,7 +6,7 @@ import type { Lattice } from "../dictionary/found";
 import { wordsOf } from "../dictionary/split";
 import { localNow, onLocal } from "../local";
 import { LATTICE_MAX, askKnown, askLattice, type KnownLook } from "../messages";
-import { NEW_PAINT, paintCss } from "../seekLook";
+import { NEW_PAINT, atStrength, paintCss, type FillStrength } from "../seekLook";
 import { literalOf } from "../ui/styles";
 import type { Token } from "./words";
 
@@ -60,8 +60,11 @@ function current(): KnownNow {
     now.pages !== look.pages ||
     now.byStage !== look.byStage ||
     now.colour !== look.colour ||
+    now.strength !== look.strength ||
     now.suspendedColour !== look.suspendedColour ||
+    now.suspendedStrength !== look.suspendedStrength ||
     now.flaggedColour !== look.flaggedColour ||
+    now.flaggedStrength !== look.flaggedStrength ||
     now.words !== words.words
   )
     now = { ...look, ...words };
@@ -156,8 +159,6 @@ export const knownCssOf = (known: Pick<KnownNow, "byStage" | "colour" | "colours
 /** The names the page's highlight layer knows Panki's marks by: one only suspended cards are, one a flagged card is; a word that's in the decks is one per colour in use (`KNOWN_PREFIX`). */
 const HIGHLIGHT: Record<Exclude<KnownAs, "known">, string> = { suspended: "panki-known-suspended", flagged: "panki-known-flagged" };
 const KNOWN_PREFIX = "panki-known";
-/** How strongly a known word is tinted: its colour mixed with nothing, so the words stay readable on any page. */
-const TINT = "38%";
 /** Text that isn't read: readings over kanji, scripts, what's typed into. */
 const SKIPPED = "rt, rp, script, style, noscript, textarea, input, select, [contenteditable='true'], [contenteditable='']";
 /** How many lines are asked of the worker at once, so a long page doesn't hold up the popup. */
@@ -165,8 +166,8 @@ const IN_FLIGHT = 4;
 /** How long the page must stay still after a change before it's read again: a page being built changes a lot at once. */
 const SETTLE_MS = 300;
 
-/** How a known word is tinted, in a colour as the page can have it. */
-export const tintOf = (colour: string) => `color-mix(in srgb, ${colour} ${TINT}, transparent)`;
+/** How a known word is tinted, in a colour as the page can have it, at the strength set for that colour (`atStrength`). */
+export const tintOf = (colour: string, strength: FillStrength) => atStrength(colour, strength);
 
 /**
  * The lines split by the dictionary for marking, a cache of their own (the line under the player's, `useWords`, keeps
@@ -391,11 +392,11 @@ export function markKnownOnPage(): void {
 
   /** The colours, on the page's highlight layer, as the colours themselves: the app's tokens don't reach the page. */
   function paint() {
-    const { suspendedColour, flaggedColour } = current();
+    const { strength, suspendedColour, suspendedStrength, flaggedColour, flaggedStrength } = current();
     style.textContent = [
-      ...[...byColour.entries()].map(([colour, { name }]) => `::highlight(${name}) { background-color: ${tintOf(literalOf(colour))}; }`),
-      `::highlight(${HIGHLIGHT.suspended}) { background-color: ${tintOf(literalOf(paintCss(suspendedColour)))}; }`,
-      `::highlight(${HIGHLIGHT.flagged}) { background-color: ${tintOf(literalOf(paintCss(flaggedColour)))}; }`,
+      ...[...byColour.entries()].map(([colour, { name }]) => `::highlight(${name}) { background-color: ${tintOf(literalOf(colour), strength)}; }`),
+      `::highlight(${HIGHLIGHT.suspended}) { background-color: ${tintOf(literalOf(paintCss(suspendedColour)), suspendedStrength)}; }`,
+      `::highlight(${HIGHLIGHT.flagged}) { background-color: ${tintOf(literalOf(paintCss(flaggedColour)), flaggedStrength)}; }`,
     ].join("\n");
     if (!style.isConnected) (document.head ?? document.documentElement).append(style);
   }
