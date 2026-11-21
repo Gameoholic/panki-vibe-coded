@@ -51,19 +51,15 @@ export const trialPicked = (pick: TrialPick): boolean => TRIAL_BASES.some((base)
 /** An answer that went with the trial's wordings: which, and the use kept of it (what its rating is given to). */
 export const TrialRun = z.object({ pick: TrialPick, use: z.number().int().positive() });
 export type TrialRun = z.infer<typeof TrialRun>;
-/** A rating under an answer: thumbs up or thumbs down; none once it's taken back. */
-export const TrialRating = z.enum(["up", "down"]);
+/** A rating under an answer: thumbs up, Meh or thumbs down; none once it's taken back. */
+export const TrialRating = z.enum(["up", "meh", "down"]);
 export type TrialRating = z.infer<typeof TrialRating>;
 export const TrialRate = z.object({ rating: TrialRating.nullable() });
 export type TrialRate = z.infer<typeof TrialRate>;
-/** The trial so far, per set, each wording by its codename: how often it went, and its thumbs (each answer's latest rating). */
+const Count = z.number().int().nonnegative();
+/** The trial so far, per set, each wording by its codename: how often it went, and its ratings (each answer's latest). */
 export const TrialResults = z.object({
-  sets: z.array(
-    z.object({
-      name: z.string(),
-      rows: z.array(z.object({ codename: z.string(), used: z.number().int().nonnegative(), up: z.number().int().nonnegative(), down: z.number().int().nonnegative() })),
-    }),
-  ),
+  sets: z.array(z.object({ name: z.string(), rows: z.array(z.object({ codename: z.string(), used: Count, up: Count, meh: Count, down: Count })) })),
 });
 export type TrialResults = z.infer<typeof TrialResults>;
 export const TrialResultsResponse = z.object({ results: TrialResults });
@@ -80,4 +76,4 @@ export function trialUsesOf(uses: readonly { pick: TrialPick }[]): Record<string
 }
 /** The results as plain text, for Copy results: a set a block, a wording a line. */
 export const trialResultsText = (results: TrialResults): string =>
-  results.sets.map((set) => [`${set.name}:`, ...set.rows.map((row) => `- ${row.codename}: used ${row.used}, 👍 ${row.up}, 👎 ${row.down}`)].join("\n")).join("\n\n");
+  results.sets.map((set) => [`${set.name}:`, ...set.rows.map((row) => `- ${row.codename}: used ${row.used}, 👍 ${row.up}, Meh ${row.meh}, 👎 ${row.down}`)].join("\n")).join("\n\n");

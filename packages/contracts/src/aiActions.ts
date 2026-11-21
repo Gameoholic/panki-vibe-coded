@@ -133,9 +133,11 @@ const trial = (id: TrialActionId, of: "Explain" | "Context", codename: string, w
  * and a thumb under an answer from before it is refused (the page puts it back). The card's actions are untouched.
  *
  * Choosing the winners, once the owner pastes the results (Settings → Prompt trial → Copy results: per set, each
- * codename's "used", 👍 and 👎): each wording's score is (👍 − 👎) / used; the highest score in its set wins. Ask the owner
- * instead of deciding when it's near: the top two within 0.1 of each other, or the top one used fewer than 5 times. The
- * control winning (Lantern, Button) means the words stay as they are; the rest of the checklist still applies.
+ * codename's "used", 👍, Meh and 👎): each wording's score is (👍 − 👎) / (👍 + Meh + 👎), that is per answer rated, 👍
+ * counting +1, Meh 0 and 👎 −1; an answer left unrated says nothing and counts nowhere. The highest score in its set
+ * wins. Ask the owner instead of deciding when it's near: the top two within 0.1 of each other, or the top one rated
+ * fewer than 5 times. The control winning (Lantern, Button) means the words stay as they are; the rest of the checklist
+ * still applies.
  *
  * The checklist, everything to change or take out (then `pnpm typecheck`, `pnpm build`, `pnpm docs:check`, the contracts
  * and API tests):
@@ -180,7 +182,7 @@ const trial = (id: TrialActionId, of: "Explain" | "Context", codename: string, w
  *    - `views/SettingsView.tsx`: the Prompt trial tab, its `TABS` entry, `"trial"` in `SettingsTab`, its
  *      `.settings-tab`, the `PromptTrialPanel` import; the tabs' comment back to six.
  *    - `api.ts`: `trialResults`, `clearTrial`, the `TrialResultsResponse` / `TrialResults` imports.
- *    - `components/Icon.tsx`: `thumbUp` and `thumbDown`, if nothing else draws them.
+ *    - `components/Icon.tsx`: `thumbUp`, `meh` and `thumbDown`, if nothing else draws them.
  *    - `components/AiRun.tsx`: `QuietIconButton`'s `pressed`, if nothing else passes it (and `aria-expanded` back to
  *      `open`). `components/PromptContext.tsx`: `CopyButton`'s `words`, if nothing else names one.
  *    - `app.css`: `.prompt-trial-table…`, `.trial-thumbs` and `.quiet-icon > .btn-icon[aria-pressed="true"]`.
@@ -742,7 +744,8 @@ export function trialResultsOf(uses: readonly { id: number; pick: TrialPick }[],
       rows: TRIAL_SETS[base].map((id) => {
         const went = uses.filter((use) => use.pick[base] === id);
         const rated = went.map((use) => latest.get(use.id) ?? null);
-        return { codename: codenameOf(id), used: went.length, up: rated.filter((r) => r === "up").length, down: rated.filter((r) => r === "down").length };
+        const count = (rating: TrialRating) => rated.filter((r) => r === rating).length;
+        return { codename: codenameOf(id), used: went.length, up: count("up"), meh: count("meh"), down: count("down") };
       }),
     })),
   };

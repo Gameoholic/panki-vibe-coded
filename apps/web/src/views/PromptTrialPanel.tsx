@@ -79,6 +79,7 @@ export function PromptTrialPanel() {
                   <th scope="col" aria-label="Thumbs up">
                     👍
                   </th>
+                  <th scope="col">Meh</th>
                   <th scope="col" aria-label="Thumbs down">
                     👎
                   </th>
@@ -90,6 +91,7 @@ export function PromptTrialPanel() {
                     <th scope="row">{row.codename}</th>
                     <td>{row.used}</td>
                     <td>{row.up}</td>
+                    <td>{row.meh}</td>
                     <td>{row.down}</td>
                   </tr>
                 ))}

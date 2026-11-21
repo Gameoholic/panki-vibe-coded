@@ -85,7 +85,7 @@ Paths from `apps/web/src/`.
 | TodayBar | `components/TodayBar.tsx` | Today's cards folded to their counts (`TodayBar`, `todayWords`). |
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
 | TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field, examples row by row (`Tied`, `fieldShown`, `ExamplesDiff`, `UnmarkAi`). One proposal. |
-| TrialThumbs | `components/TrialThumbs.tsx` | The blind trial's rating under an answer: a quiet thumb up and thumb down, one press, again to take it back (`TrialThumbs`). Temporary. |
+| TrialThumbs | `components/TrialThumbs.tsx` | The blind trial's rating under an answer: a quiet thumb up, Meh and thumb down, one press, again to take it back (`TrialThumbs`). Temporary. |
 | aiScenes | `explainers/aiScenes.tsx` | What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). |
 | examples | `explainers/examples.ts` | The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. |
 | reviewScenes | `explainers/reviewScenes.tsx` | What Settings → General → Reviews' explainers play, on Panki's own review: Start cards blurred, Time left, Time studying (`BlurScene`, `TimeLeftScene`, `TimeStudyingScene`). |

@@ -49,7 +49,7 @@ import {
   withTrial,
   type ExplainSend,
 } from "../src/aiActions";
-import { TRIAL_SETS, TrialPick, trialPicked, trialResultsText, trialUsesOf } from "../src/promptTrial";
+import { TRIAL_SETS, TrialPick, TrialRate, trialPicked, trialResultsText, trialUsesOf } from "../src/promptTrial";
 import { aiSent, explainProblem } from "../src/prompt";
 import { touchUpProblem, type TouchUpNow } from "../src/touchUp";
 
@@ -496,20 +496,30 @@ test("A message sent with its pick says the wording's words under the action's o
   const uses = [
     { id: 1, pick: { explain: "explainWalrus" as const } },
     { id: 2, pick: { explain: "explainWalrus" as const, explainContext: "contextKettle" as const } },
+    { id: 3, pick: { explain: "explainWalrus" as const } },
   ];
   const results = trialResultsOf(uses, [
     { use: 1, rating: "up" },
     { use: 2, rating: "up" },
     { use: 2, rating: "down" },
+    { use: 3, rating: "meh" },
   ]);
   assert.deepEqual(results.sets.map((set) => set.name), ["Explain", "Context"]);
-  assert.deepEqual(results.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 2, up: 1, down: 1 });
-  assert.deepEqual(results.sets[1]?.rows.find((row) => row.codename === "Kettle"), { codename: "Kettle", used: 1, up: 0, down: 1 });
-  assert.deepEqual(trialUsesOf(uses), { explainWalrus: 2, contextKettle: 1 });
+  assert.deepEqual(results.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 3, up: 1, meh: 1, down: 1 });
+  assert.deepEqual(results.sets[1]?.rows.find((row) => row.codename === "Kettle"), { codename: "Kettle", used: 1, up: 0, meh: 0, down: 1 });
+  assert.deepEqual(trialUsesOf(uses), { explainWalrus: 3, contextKettle: 1 });
+  // Meh is a rating like the others: switched to, it takes the thumb's place.
+  const switched = trialResultsOf(uses.slice(0, 1), [
+    { use: 1, rating: "up" },
+    { use: 1, rating: "meh" },
+  ]);
+  assert.deepEqual(switched.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 1, up: 0, meh: 1, down: 0 });
+  assert.equal(TrialRate.safeParse({ rating: "meh" }).success, true);
   // A rating of a use that isn't among those read (one from before Clear results) counts for nothing.
   const cleared = trialResultsOf([{ id: 7, pick: { explain: "explainWalrus" } }], [{ use: 1, rating: "up" }]);
-  assert.deepEqual(cleared.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 1, up: 0, down: 0 });
-  assert.ok(trialResultsText(results).startsWith("Explain:\n- Pebble: used 0, 👍 0, 👎 0"));
+  assert.deepEqual(cleared.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 1, up: 0, meh: 0, down: 0 });
+  assert.ok(trialResultsText(results).startsWith("Explain:\n- Pebble: used 0, 👍 0, Meh 0, 👎 0"));
+  assert.ok(trialResultsText(results).includes("- Walrus: used 3, 👍 1, Meh 1, 👎 1"));
 });
 
 test("The defaults ticked as a conversation opens are the account's once set, in the place's order, Panki's until then", () => {

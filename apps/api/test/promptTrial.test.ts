@@ -45,10 +45,13 @@ test("a rating names a use; the latest stands, taken back is none; a use that is
     assert.equal(trial.rate(use, "down", NOW + 1), true);
     assert.equal(trial.rate(use + 100, "up", NOW), false);
     let walrus = trialResultsOf(trial.uses(), trial.ratings()).sets[0]?.rows.find((row) => row.codename === "Walrus");
-    assert.deepEqual(walrus, { codename: "Walrus", used: 1, up: 0, down: 1 });
-    trial.rate(use, null, NOW + 2);
+    assert.deepEqual(walrus, { codename: "Walrus", used: 1, up: 0, meh: 0, down: 1 });
+    assert.equal(trial.rate(use, "meh", NOW + 2), true);
     walrus = trialResultsOf(trial.uses(), trial.ratings()).sets[0]?.rows.find((row) => row.codename === "Walrus");
-    assert.deepEqual(walrus, { codename: "Walrus", used: 1, up: 0, down: 0 });
+    assert.deepEqual(walrus, { codename: "Walrus", used: 1, up: 0, meh: 1, down: 0 });
+    trial.rate(use, null, NOW + 3);
+    walrus = trialResultsOf(trial.uses(), trial.ratings()).sets[0]?.rows.find((row) => row.codename === "Walrus");
+    assert.deepEqual(walrus, { codename: "Walrus", used: 1, up: 0, meh: 0, down: 0 });
   });
 });
 
@@ -61,18 +64,18 @@ test("Clear results starts the trial over: counts and results from nothing, a us
     assert.deepEqual(trial.counts(), {});
     assert.deepEqual(trial.uses(), []);
     assert.deepEqual(trial.ratings(), []);
-    assert.ok(trialResultsOf(trial.uses(), trial.ratings()).sets.every((set) => set.rows.every((row) => row.used === 0 && row.up === 0 && row.down === 0)));
+    assert.ok(trialResultsOf(trial.uses(), trial.ratings()).sets.every((set) => set.rows.every((row) => row.used === 0 && row.up === 0 && row.meh === 0 && row.down === 0)));
     // A thumb under an answer from before the clear is ignored.
     assert.equal(trial.rate(old, "down", NOW + 2), false);
     // What comes after counts, and a later clear starts over again from there.
     const fresh = trial.keepUse({ explain: "explainTeapot" }, NOW + 3);
     assert.equal(trial.rate(fresh, "up", NOW + 4), true);
     let teapot = trialResultsOf(trial.uses(), trial.ratings()).sets[0]?.rows.find((row) => row.codename === "Teapot");
-    assert.deepEqual(teapot, { codename: "Teapot", used: 1, up: 1, down: 0 });
+    assert.deepEqual(teapot, { codename: "Teapot", used: 1, up: 1, meh: 0, down: 0 });
     assert.deepEqual(trial.counts(), { explainTeapot: 1 });
     trial.clear(NOW + 5);
     teapot = trialResultsOf(trial.uses(), trial.ratings()).sets[0]?.rows.find((row) => row.codename === "Teapot");
-    assert.deepEqual(teapot, { codename: "Teapot", used: 0, up: 0, down: 0 });
+    assert.deepEqual(teapot, { codename: "Teapot", used: 0, up: 0, meh: 0, down: 0 });
   });
 });
 
