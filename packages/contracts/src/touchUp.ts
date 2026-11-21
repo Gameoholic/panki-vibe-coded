@@ -118,32 +118,44 @@ export const EmptySentenceWire = z.object({
 });
 export type EmptySentenceWire = z.infer<typeof EmptySentenceWire>;
 
-/** A subtitle line as a card's message holds it: its number, the same in every message of the video (its place among the video's lines, from 1), and its words. */
-export type SubtitleLine = { n: number; text: string };
-/** A line as the page sends it numbered: its number, a tab, then its words. */
-const NUMBERED = /^(\d{1,7})\t(.*)$/;
+/**
+ * A subtitle line as a card's message holds it: its number, the same in every message of the video (its place among
+ * the video's lines, from 1), when in the video it begins (`lineStampOf`; none from a page that didn't say), and its words.
+ */
+export type SubtitleLine = { n: number; at?: string; text: string };
+/** When a line begins, as the prompt says it: m:ss.s, or h:mm:ss.s past an hour, so how long a stretch of lines runs can be read off them. */
+export function lineStampOf(seconds: number): string {
+  const tenths = Math.max(0, Math.round(seconds * 10));
+  const all = Math.floor(tenths / 10);
+  const [h, m, s] = [Math.floor(all / 3600), Math.floor((all % 3600) / 60), all % 60];
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${h > 0 ? `${h}:${two(m)}` : m}:${two(s)}.${tenths % 10}`;
+}
+/** A line as the page sends it and the prompt shows it: its number, a tab, its time when it has one and a tab, then its words. */
+export const numberedLine = (line: SubtitleLine): string => (line.at ? `${line.n}\t${line.at}\t${line.text}` : `${line.n}\t${line.text}`);
+/** A line as the page sends it numbered: its number, a tab, its time and a tab (from a page that says it), then its words. */
+const NUMBERED = /^(\d{1,7})\t(?:(\d+(?::\d{2}){1,2}\.\d)\t)?(.*)$/;
 /**
  * The subtitles a Sentence is picked from, a line each as the message holds them: every line not blank, trimmed, in
  * order, under the number the page put before it (its place among the video's lines, so a line has one number in
- * every message, the wider subtitles' too); a line without one is numbered on from the line before it, 1 for the
- * first, as an older page sends them. What `numberedSubtitles` writes, and what the numbers an answer sends are read against.
+ * every message, the wider subtitles' too) and with its time when the page gave one; a line without a number is
+ * numbered on from the line before it, 1 for the first, as an older page sends them. What `numberedSubtitles` writes,
+ * and what the numbers an answer sends are read against.
  */
 export function subtitleLinesOf(text: string): SubtitleLine[] {
   const lines: SubtitleLine[] = [];
   for (const raw of text.split("\n")) {
     const numbered = NUMBERED.exec(raw);
-    const words = (numbered ? (numbered[2] ?? "") : raw).trim();
+    const words = (numbered ? (numbered[3] ?? "") : raw).trim();
     if (words === "") continue;
     const n = numbered ? Number(numbered[1]) : (lines.at(-1)?.n ?? 0) + 1;
-    lines.push({ n, text: words });
+    const at = numbered?.[2];
+    lines.push(at ? { n, at, text: words } : { n, text: words });
   }
   return lines;
 }
-/** Subtitles as a card's prompt sends them: each line its number, a tab, then the line (`subtitleLinesOf`). */
-export const numberedSubtitles = (text: string): string =>
-  subtitleLinesOf(text)
-    .map((line) => `${line.n}\t${line.text}`)
-    .join("\n");
+/** Subtitles as a card's prompt sends them: each line its number, its time when it has one, then the line, apart by tabs (`subtitleLinesOf`). */
+export const numberedSubtitles = (text: string): string => subtitleLinesOf(text).map(numberedLine).join("\n");
 /** What a Sentence's line numbers are read against: the lines of the subtitles the conversation holds, and the word as met, which the lines picked must hold. */
 export type SentenceLines = { lines: readonly SubtitleLine[]; word: string };
 /** One example on the wire: every part always there. */

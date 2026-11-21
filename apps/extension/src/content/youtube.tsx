@@ -14,7 +14,7 @@ import { spanOver, type Span, type Token } from "../capture/words";
 import type { Found } from "../dictionary/found";
 import type { Forced } from "../dictionary/split";
 import { useWords } from "../dictionary/useWords";
-import { FIND_VIDEO_END, bareOf, defaultTemplateOf, inEnd, momentWanted, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type VideoRecap, type WatchedSpan, type WatchMarkSource } from "@panki/contracts";
+import { FIND_VIDEO_END, bareOf, defaultTemplateOf, inEnd, lineStampOf, momentWanted, numberedLine, runsOf, templateById, templatesOf, youtubeMetaValue, youtubeUrl, type AiMessageWhy, type AiTemplate, type CaptureFacts, type LinesHeld, type VideoRecap, type WatchedSpan, type WatchMarkSource } from "@panki/contracts";
 import { AiStatus } from "@web/components/AiStatus";
 import { AiSpark, AiWaiting } from "@web/components/AiWaiting";
 import { MESSAGE_WORDS, MessageAsk, TemplateMenu, useAskFirst } from "@web/components/AiRun";
@@ -409,9 +409,10 @@ function videoPieces(limits: PieceLimits): VideoMore {
     reached(reach)
       .map((line) => line.text)
       .join("\n");
+  // Each line with when it begins, so how long a stretch of them runs can be read off them.
   const numbered = (reach: number) =>
     reached(reach)
-      .map((line) => `${line.n}\t${line.text}`)
+      .map((line) => numberedLine({ n: line.n, at: lineStampOf(line.start), text: line.text }))
       .join("\n");
   const description = descriptionText().slice(0, limits.aiMaxDescriptionChars);
   return { pieces: { source, description }, around, numbered, linesOf: (sentence: string) => linesHeldOf(shown, sentence, at), spanOf };

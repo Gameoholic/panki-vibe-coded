@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AI_ACTIONS, requiredFor } from "../src/aiActions";
-import { answerOfWire, numberedSubtitles, subtitleLinesOf, touchUpProblem, touchUpShape, type TouchUpNow, type TouchUpWire } from "../src/touchUp";
+import { answerOfWire, lineStampOf, numberedLine, numberedSubtitles, subtitleLinesOf, touchUpProblem, touchUpShape, type TouchUpNow, type TouchUpWire } from "../src/touchUp";
 
 /*
  * Touch up's one answer shape (`touchUp.ts`): every send answers a reply and each key it may answer, answered or left
@@ -81,6 +81,21 @@ const SENTENCE_NOW: TouchUpNow = { values: { line: "殴られてる。" }, ticke
 
 test("subtitles are numbered a line each, blank lines left out", () => {
   assert.equal(numberedSubtitles(SUBTITLES), "1\t何されてる？\n2\t殴られてる。\n3\tこういう澤部さん。");
+});
+
+test("a line's time, when the page gives one, is kept apart from its words and shown between its number and them", () => {
+  assert.equal(lineStampOf(350.24), "5:50.2");
+  assert.equal(lineStampOf(3725.06), "1:02:05.1");
+  assert.equal(lineStampOf(9.96), "0:10.0");
+  const sent = [numberedLine({ n: 182, at: lineStampOf(348), text: "一晩過ごしましょう。" }), "183\tいや、おっかないおっかねえ。"].join("\n");
+  assert.deepEqual(subtitleLinesOf(sent), [
+    { n: 182, at: "5:48.0", text: "一晩過ごしましょう。" },
+    { n: 183, text: "いや、おっかないおっかねえ。" },
+  ]);
+  assert.equal(numberedSubtitles(sent), "182\t5:48.0\t一晩過ごしましょう。\n183\tいや、おっかないおっかねえ。");
+  // A Sentence picked from timed lines copies their words alone.
+  const timed = { lines: subtitleLinesOf("1\t0:01.0\t何されてる？\n2\t0:02.5\t殴られてる。"), word: "殴られてる" };
+  assert.equal(answerOfWire({ reply: "", line: { judgement: "meh", first: 1, last: 2, why: "Needs the question.", error: "" } }, timed).answer.line?.proposed, "何されてる？\n殴られてる。");
 });
 
 test("a Sentence is the subtitle lines its numbers name, copied, in order and within the lines there are", () => {
