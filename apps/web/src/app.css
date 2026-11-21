@@ -9395,11 +9395,12 @@ mark.search-lit {
   width: 16px;
   height: 16px;
 }
-/* The conversation's knobs, beside the actions at the left: its settings, then Clear conversation, each a quiet icon. */
+/* The conversation's knobs, beside the actions at the left: its settings, then Clear conversation, each a quiet icon,
+   as far apart as everything else in the row (its own gap, inherited). */
 .composer-knobs-buttons {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: inherit;
   margin-right: auto;
 }
 /* The conversation's settings, folded above the box until its button opens them: a row each. */
