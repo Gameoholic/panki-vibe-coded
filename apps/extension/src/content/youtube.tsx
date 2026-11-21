@@ -2313,6 +2313,26 @@ function BesideList({ parts, lit, picked, now, forcedOf, fixable, aiLines, waiti
     ownUntil.current = Date.now() + 900;
     box.scrollTo({ top: Math.max(0, (before ?? row).offsetTop), behavior: still || matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
+  const latest = useRef({ follow, judge });
+  latest.current = { follow, judge };
+  // Shown again (the panel brought back by its key or its button, or put back on the page): it stood hidden, its
+  // scroll gone back to the top, so it's at the line being said at once, no scrolling there to watch, and followed again.
+  useEffect(() => {
+    const box = list.current;
+    if (!box) return;
+    let shown = box.clientHeight > 0;
+    const sizes = new ResizeObserver(() => {
+      const now = box.clientHeight > 0;
+      if (now && !shown) {
+        heldUntil.current = 0;
+        latest.current.follow(true);
+        latest.current.judge();
+      }
+      shown = now;
+    });
+    sizes.observe(box);
+    return () => sizes.disconnect();
+  }, []);
   useEffect(() => {
     judge();
     const found = litRow();
