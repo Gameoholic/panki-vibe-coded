@@ -500,42 +500,7 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onOrder, 
               <ModeChip mode="full" /> failed{transcribing ? " · the chunks carry on" : null}
             </p>
           ) : null}
-          {/* Two parts, each named: Panki AI and the transcript. The automations are Panki's Settings → Automations alone. */}
-          {ai && hasAny ? (
-            <div className="strip-menu-items">
-              {ai.headed ? null : (
-                <p className="strip-menu-label">
-                  <AiSpark />
-                  Panki AI
-                </p>
-              )}
-              {ai.head}
-              {ai.whole}
-              <Button variant="item" aria-pressed={asking === "proofread"} disabled={ai.part.disabled} onClick={() => ask("proofread")}>
-                <AiSpark />
-                Proofread a part…
-                {ai.part.why ? <span className="strip-menu-why">{ai.part.why}</span> : null}
-              </Button>
-              {asking === "proofread" && !ai.part.disabled ? (
-                <StretchForm
-                  key="proofread"
-                  id="panki-proofread"
-                  at={at}
-                  duration={duration}
-                  action="Proofread"
-                  lead={<AiSpark />}
-                  widen={(stretch) => Promise.resolve(ai.part.widen(stretch))}
-                  beside={(stretch) => (stretch ? ai.part.costOf(stretch) : null)}
-                  onDone={(stretch) => {
-                    // The menu stays open: the run's head comes up in it.
-                    setAsking(null);
-                    ai.part.onRun(ai.part.widen(stretch) ?? stretch);
-                  }}
-                />
-              ) : null}
-              {ai.end}
-            </div>
-          ) : null}
+          {/* Two parts, each named: the transcript, then Panki AI. The automations are Panki's Settings → Automations alone. */}
           {transcribing || showStart || hasAny ? (
             <div className="strip-menu-items">
               <p className="strip-menu-label">Transcript</p>
@@ -594,6 +559,41 @@ export function TranscribeMenu({ state, duration, at, onStart, onStop, onOrder, 
                   onGo={() => done(onForget)}
                 />
               ) : null}
+            </div>
+          ) : null}
+          {ai && hasAny ? (
+            <div className="strip-menu-items">
+              {ai.headed ? null : (
+                <p className="strip-menu-label">
+                  <AiSpark />
+                  Panki AI
+                </p>
+              )}
+              {ai.head}
+              {ai.whole}
+              <Button variant="item" aria-pressed={asking === "proofread"} disabled={ai.part.disabled} onClick={() => ask("proofread")}>
+                <AiSpark />
+                Proofread a part…
+                {ai.part.why ? <span className="strip-menu-why">{ai.part.why}</span> : null}
+              </Button>
+              {asking === "proofread" && !ai.part.disabled ? (
+                <StretchForm
+                  key="proofread"
+                  id="panki-proofread"
+                  at={at}
+                  duration={duration}
+                  action="Proofread"
+                  lead={<AiSpark />}
+                  widen={(stretch) => Promise.resolve(ai.part.widen(stretch))}
+                  beside={(stretch) => (stretch ? ai.part.costOf(stretch) : null)}
+                  onDone={(stretch) => {
+                    // The menu stays open: the run's head comes up in it.
+                    setAsking(null);
+                    ai.part.onRun(ai.part.widen(stretch) ?? stretch);
+                  }}
+                />
+              ) : null}
+              {ai.end}
             </div>
           ) : null}
         </div>

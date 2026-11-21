@@ -664,6 +664,21 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
                       {hmsWords(VIDEO_SECONDS)} transcribed <span className="is-all">(100%)</span>
                     </p>
                     <div className="ex-under-part">
+                      <span className="menu-title">Transcript</span>
+                      <Button variant="item">
+                        <Icon name="edit" />
+                        Edit the transcript
+                      </Button>
+                      <Button variant="item">
+                        <Icon name="again" />
+                        Re-transcribe a part…
+                      </Button>
+                      <Button variant="item" className="is-danger">
+                        <Icon name="trash" />
+                        Forget the transcript…
+                      </Button>
+                    </div>
+                    <div className="ex-under-part">
                       {calls.length > 0 ? (
                         <AiStatus calls={calls} />
                       ) : (
@@ -680,21 +695,6 @@ function ProofreadScene({ ai, defaults, showCostOver }: SceneProps) {
                       <Button variant="item">
                         <AiSpark />
                         Proofread a part…
-                      </Button>
-                    </div>
-                    <div className="ex-under-part">
-                      <span className="menu-title">Transcript</span>
-                      <Button variant="item">
-                        <Icon name="edit" />
-                        Edit the transcript
-                      </Button>
-                      <Button variant="item">
-                        <Icon name="again" />
-                        Re-transcribe a part…
-                      </Button>
-                      <Button variant="item" className="is-danger">
-                        <Icon name="trash" />
-                        Forget the transcript…
                       </Button>
                     </div>
                   </div>
