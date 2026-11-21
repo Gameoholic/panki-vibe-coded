@@ -9375,7 +9375,7 @@ mark.search-lit {
   color: var(--accent);
   border-color: transparent;
 }
-.composer-actions:has(+ .composer-knobs-button) {
+.composer-actions:has(+ .composer-knobs-buttons) {
   margin-right: 0;
 }
 /* A conversation's quiet icon button (`AiRun.tsx` → `QuietIconButton`): small, muted and plain, its words in a Tip hanging from it. */
@@ -9395,7 +9395,11 @@ mark.search-lit {
   width: 16px;
   height: 16px;
 }
-.composer-knobs-button {
+/* The conversation's knobs, beside the actions at the left: its settings, then Clear conversation, each a quiet icon. */
+.composer-knobs-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   margin-right: auto;
 }
 /* The conversation's settings, folded above the box until its button opens them: a row each. */
@@ -9408,27 +9412,6 @@ mark.search-lit {
 }
 .composer-knobs .setting {
   margin: 0;
-}
-/* Clear conversation, the fold's last row: the trash and its words, quiet as the fold is, nothing red until it asks. */
-.composer-knob-action {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
-}
-.composer-knob-action > .btn {
-  gap: 6px;
-  padding: 4px 8px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.composer-knob-action > .btn:hover,
-.composer-knob-action > .btn[aria-expanded="true"] {
-  color: var(--fg);
-}
-.composer-knob-action .icon {
-  width: 16px;
-  height: 16px;
 }
 .composer-error {
   margin: 0;

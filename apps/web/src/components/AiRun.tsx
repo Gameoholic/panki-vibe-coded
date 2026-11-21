@@ -399,20 +399,20 @@ export function actionsSummary(actions: readonly ComposerAction[]): string {
   return lit.length === 1 ? first.name : `${first.name} · ${lit.length - 1} more`;
 }
 /**
- * A conversation's own settings, set from the composer's settings button in a fold above it: the one home for every
- * knob of the conversation (a row each), closed until opened, none of it shown otherwise. A knob that's null has no row
- * (How much of the video, off a video).
+ * A conversation's own knobs, each a quiet icon button in the composer's row: its settings (a fold above the composer,
+ * closed until opened, a row each) and Clear conversation beside them. A knob that's null has no button or row (Video
+ * context length off a video, and with it the settings button).
  */
 export type ConversationKnobs = {
   /**
    * How much of the video Panki AI hears, from the message sent next on: kept in seconds each way
-   * (`CONVERSATION_REACHES`), shown as its whole length (`contextLengthOf`).
+   * (`CONVERSATION_REACHES`), shown as its whole length (`contextLengthOf`). The settings fold's one row today.
    */
   reach: { seconds: number; onChange: (seconds: number) => void } | null;
   /**
-   * Clear conversation, the fold's last row, always there: asking first, then the place's `onClear`, which puts the
-   * conversation back as it opened. `detail` is what goes and what stays, in the place's words; `empty` while there's
-   * nothing to clear (greyed, why beside it); `disabled` while a call is out.
+   * Clear conversation, its own quiet button beside the settings', always there: asking first, then the place's
+   * `onClear`, which puts the conversation back as it opened. `detail` is what goes and what stays, in the place's
+   * words; greyed while there's nothing to clear (`empty`) or a call is out (`disabled`), nothing said of why.
    */
   clear: { detail: string; empty: boolean; disabled: boolean; onClear: () => void } | null;
 };
@@ -428,31 +428,23 @@ export const KNOB_WORDS = {
   },
   /** The note a change of Video context length writes into the conversation where it was made. */
   reachFrom: (eachWay: number) => `From here on, ${KNOB_WORDS.length(eachWay)} of video context.`,
-  /** The fold's row clearing the conversation whole, and its question. */
+  /** The button clearing the conversation whole, and its question. */
   clear: "Clear conversation",
   clearing: "Clearing…",
   clearAsk: "Clear this conversation?",
-  /** Beside Clear conversation, greyed, before there's anything in the conversation. */
-  nothingToClear: "Nothing to clear yet.",
 };
-/** Whether a conversation has any knob to show: its settings button is there only then. */
-const hasKnobs = (knobs: ConversationKnobs | null | undefined): knobs is ConversationKnobs => knobs != null && (knobs.reach !== null || knobs.clear !== null);
 
 /**
- * Clear conversation as the settings fold's row: the trash and its words, quiet as the fold is, asking first in `Ask`
- * hanging from it (what's cleared can't be had back; the red is the question's own button), then `onClear`.
+ * Clear conversation, a quiet icon button beside the settings': the trash, its words its label and Tip, asking first in
+ * `Ask` hanging from it (what's cleared can't be had back; the red is the question's own button), then `onClear`.
  */
-function ClearRow({ detail, empty, disabled, onClear }: NonNullable<ConversationKnobs["clear"]>) {
+function ClearButton({ detail, empty, disabled, onClear }: NonNullable<ConversationKnobs["clear"]>) {
   const [asking, setAsking] = useState(false);
   const at = useRef<HTMLButtonElement>(null);
   const id = useId();
   return (
-    <div className="composer-knob-action">
-      <Button ref={at} aria-pressed={asking} aria-expanded={asking} disabled={disabled || empty} onClick={() => setAsking(!asking)}>
-        <Icon name="trash" />
-        {KNOB_WORDS.clear}
-      </Button>
-      {empty ? <span className="btn-beside">{KNOB_WORDS.nothingToClear}</span> : null}
+    <>
+      <QuietIconButton ref={at} className="composer-clear-button" icon="trash" words={KNOB_WORDS.clear} open={asking} disabled={disabled || empty} onClick={() => setAsking(!asking)} />
       {asking ? (
         <Ask
           idPrefix={`${id}-clear`}
@@ -469,13 +461,13 @@ function ClearRow({ detail, empty, disabled, onClear }: NonNullable<Conversation
           }}
         />
       ) : null}
-    </div>
+    </>
   );
 }
 
 /**
  * A conversation's quiet icon button: its icon alone, muted, its words its label and in a `Tip` while a mouse is on it
- * or it has the focus (none while what it opens is open). The composer's settings and the head's Clear conversation.
+ * or it has the focus (none while what it opens is open). The composer's settings and Clear conversation.
  */
 export function QuietIconButton({
   ref,
@@ -527,30 +519,26 @@ function KnobsButton({ id, open, onToggle, disabled }: { id: string; open: boole
   return <QuietIconButton className="composer-knobs-button" icon="settings" words={KNOB_WORDS.button} open={open} controls={`${id}-knobs`} disabled={disabled} onClick={onToggle} />;
 }
 
-/** A conversation's settings, a row each: today Video context length, then Clear conversation. */
-function ConversationSettings({ id, knobs, disabled }: { id: string; knobs: ConversationKnobs; disabled: boolean }) {
-  const { reach, clear } = knobs;
+/** A conversation's settings, a row each: today Video context length. */
+function ConversationSettings({ id, reach, disabled }: { id: string; reach: NonNullable<ConversationKnobs["reach"]>; disabled: boolean }) {
   return (
     <div id={`${id}-knobs`} className="composer-knobs" role="group" aria-label={KNOB_WORDS.button}>
-      {reach ? (
-        <Setting
-          id={`${id}-reach`}
-          label={KNOB_WORDS.reach}
-          control={
-            <Segmented
-              idPrefix={`${id}-reach`}
-              label={KNOB_WORDS.reach}
-              size="sm"
-              wrap
-              disabled={disabled}
-              options={CONVERSATION_REACHES.map((seconds) => ({ id: String(seconds), label: KNOB_WORDS.length(seconds) }))}
-              value={String(reach.seconds)}
-              onChange={(seconds) => reach.onChange(Number(seconds))}
-            />
-          }
-        />
-      ) : null}
-      {clear ? <ClearRow {...clear} /> : null}
+      <Setting
+        id={`${id}-reach`}
+        label={KNOB_WORDS.reach}
+        control={
+          <Segmented
+            idPrefix={`${id}-reach`}
+            label={KNOB_WORDS.reach}
+            size="sm"
+            wrap
+            disabled={disabled}
+            options={CONVERSATION_REACHES.map((seconds) => ({ id: String(seconds), label: KNOB_WORDS.length(seconds) }))}
+            value={String(reach.seconds)}
+            onChange={(seconds) => reach.onChange(Number(seconds))}
+          />
+        }
+      />
     </div>
   );
 }
@@ -573,7 +561,7 @@ export type ComposerProps = {
   beside: string | null;
   /** The presses that sent: Send's spark blinks once for each. */
   burst: number;
-  /** The conversation's own settings, behind the settings button beside the actions; none, no button. */
+  /** The conversation's own knobs, quiet icon buttons beside the actions (its settings, Clear conversation); none, no buttons. */
   knobs?: ConversationKnobs | null;
   onChange: (value: string) => void;
   /** Shift with a press on an action, or a plain press on one that's ticked: it's ticked on or off beside the others. */
@@ -622,11 +610,13 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
     go();
     if (e.detail === 0) box.current?.focus();
   };
+  const reach = knobs?.reach ?? null;
+  const clear = knobs?.clear ?? null;
   return (
     <div className="composer" role="group" aria-label={MESSAGE_WORDS.ask[place]}>
-      {hasKnobs(knobs) ? (
+      {reach ? (
         <Fold open={knobsOpen} arrives={false}>
-          <ConversationSettings id={id} knobs={knobs} disabled={sending} />
+          <ConversationSettings id={id} reach={reach} disabled={sending} />
         </Fold>
       ) : null}
       <div className={`composer-box${error ? " is-error" : ""}`}>
@@ -659,7 +649,12 @@ export function Composer({ id, place, value, error, actions, sending, canSend, b
               />
             </span>
           ) : null}
-          {hasKnobs(knobs) ? <KnobsButton id={id} open={knobsOpen} onToggle={() => setKnobsOpen((was) => !was)} disabled={false} /> : null}
+          {reach || clear ? (
+            <span className="composer-knobs-buttons">
+              {reach ? <KnobsButton id={id} open={knobsOpen} onToggle={() => setKnobsOpen((was) => !was)} disabled={false} /> : null}
+              {clear ? <ClearButton {...clear} /> : null}
+            </span>
+          ) : null}
           {beside ? <span className="btn-beside">{beside}</span> : null}
           {sending && onStop ? (
             <Button key="stop" variant="primary" className="composer-send" aria-label={MESSAGE_WORDS.stop} onMouseDown={keepFocus} onClick={press(onStop)}>

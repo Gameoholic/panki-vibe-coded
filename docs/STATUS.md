@@ -121,6 +121,7 @@ The product's state. A line moves from "not yet seen" to "in use" once the owner
 - 2026-11-16: the conversation's fades kept on its messages' box while the drawer's column or the pop-up scrolls, never over the head or Accept all (`.scroll-hold`).
 - 2026-11-18: the composer's Actions…: a click switches to that action alone, or unticks it when it's lit, and closes the list, Shift+click adds it beside the others (the Word pop-up, the Card drawer, a card opened in a deck; `Dropdown`'s `onOnly`).
 - 2026-11-20: Context, a Panki action in the Word pop-up and on a card: the sentence translated naturally, then what it means where it stands, the word itself left alone; at the end of an account's own order, ticked by no one's defaults (no migration).
+- 2026-11-21: Clear conversation out of the conversation's settings, its own trash button beside the settings button in the composer's row, a Tip and greyed with nothing to clear (the Word pop-up, the Card drawer, a card opened in a deck).
 
 ## Under way
 
