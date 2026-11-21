@@ -53,6 +53,9 @@ const ICONS = {
   unlock: ["M6 11h12v9H6z", "M8 11V8a4 4 0 0 1 7.7-1.5"],
   edit: ["M4 20h4L19 9l-4-4L4 16z", "M13 7l4 4"],
   trash: ["M4 7h16", "M9 7V4h6v3", "M6 7l1 13h10l1-13", "M10 11v6", "M14 11v6"],
+  /** A thumb up and a thumb down: a rating given under an answer (the blind trial's, `TrialThumbs`). */
+  thumbUp: ["M7 10v12", "M15 5.9L14 10h5.8a2 2 0 0 1 1.9 2.6l-2.3 8a2 2 0 0 1-1.9 1.4H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.8a2 2 0 0 0 1.8-1.1L12 2a3.1 3.1 0 0 1 3 3.9z"],
+  thumbDown: ["M17 14V2", "M9 18.1l1-4.1H4.2a2 2 0 0 1-1.9-2.6l2.3-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.8a2 2 0 0 0-1.8 1.1L12 22a3.1 3.1 0 0 1-3-3.9z"],
   play: ["M8 5l11 7-11 7z"],
   pause: ["M8 5v14", "M16 5v14"],
   /** A crescent: a card buried until tomorrow (`pause` is a suspended one too). */

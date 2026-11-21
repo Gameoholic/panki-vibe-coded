@@ -20,6 +20,11 @@ import {
   AiTemplateUpdate,
   ExplainAsk,
   ExplainShape,
+  TrialRate,
+  trialPickFor,
+  trialPicked,
+  trialResultsOf,
+  type ExplainSend,
   NewAiTemplate,
   PankiAiUpdate,
   ProofreadAsk,
@@ -321,6 +326,36 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     res.json({ actions: db.aiActions() });
   });
 
+  // Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS).
+  /**
+   * The blind trial of the Word pop-up's wordings (temporary, `promptTrial.ts`): its results so far, per set, each
+   * wording by its codename (Settings → Panki AI's Prompt trial); and a thumb given under an answer that went with it,
+   * or taken back (`rating` null), by the use its answer carried.
+   */
+  router.get("/trial", (_req, res) => {
+    const store = dbOf(res).promptTrial;
+    res.json({ results: trialResultsOf(store.uses(), store.ratings()) });
+  });
+  // Clear results: the trial starts over from here, nothing destroyed; answered with the results, empty again.
+  router.post("/trial/clear", (_req, res) => {
+    const store = dbOf(res).promptTrial;
+    store.clear(now());
+    res.json({ results: trialResultsOf(store.uses(), store.ratings()) });
+  });
+  router.post("/trial/:use", (req, res) => {
+    const use = Number(req.params.use);
+    const parsed = TrialRate.safeParse(req.body);
+    if (!Number.isInteger(use) || use <= 0 || !parsed.success) {
+      res.status(400).json({ error: { message: "That rating isn't valid." } });
+      return;
+    }
+    if (!dbOf(res).promptTrial.rate(use, parsed.data.rating, now())) {
+      res.status(404).json({ error: { message: "That answer isn't one to rate." } });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
   /**
    * Why a place didn't answer, with Panki AI as it stands, so the page says it and keeps its copy of the settings; for
    * an answer that came back unusable, what it was, for Details' Log (`unread`).
@@ -397,9 +432,15 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
       res.status(400).json({ error: { message: "A message after the first needs its own words." } });
       return;
     }
-    const send = sendOf(ask);
     // The actions by the account's own, each its words and knobs; one it no longer has refuses the message whole.
     const book = dbOf(res).aiActions();
+    // Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS).
+    // The blind trial (`promptTrial.ts`): a message with Explain or Context goes with one wording of its set
+    // that Panki picks the first time it's sent (`trialPickFor`, the least used so far); one sent with its pick already
+    // (the conversation's first, under a later message) keeps it, so its prompt is rebuilt as it went.
+    const trialOf = <S extends ExplainSend>(each: S): S => (each.trial ? each : { ...each, trial: trialPickFor(book, each.actions, dbOf(res).promptTrial.counts()) });
+    const opening = later ? ask.opening : trialOf(ask.opening);
+    const send = later ? trialOf(sendOf(ask)) : opening;
     const lit = litOf(book, "word", send.actions);
     if (!lit) {
       gone(res);
@@ -422,8 +463,8 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     const meanings = ask.meanings.length > 0 ? { dictMeaning: meaningsPiece(ask.meanings) } : {};
     const pieces = piecesFor(res, { ...ask.pieces, ...meanings }, settings);
     // Wider subtitles go only with a later message whose actions reach further than the first's (`widerOf`).
-    const own = widenedOr(send, later && widerOf(lit, litNow(book, "word", ask.opening.actions), send.reach ?? null, ask.opening.reach ?? null) !== null);
-    const sent = aiSent(wordPromptOf(settings), pieces, ask.said, explainSendPieces(own, book), explainSendPieces(withoutWider(ask.opening), book));
+    const own = widenedOr(send, later && widerOf(lit, litNow(book, "word", opening.actions), send.reach ?? null, opening.reach ?? null) !== null);
+    const sent = aiSent(wordPromptOf(settings), pieces, ask.said, explainSendPieces(own, book), explainSendPieces(withoutWider(opening), book));
     const asked = later ? (sent[sent.length - 1] ?? "") : "";
     // Read into Panki's own shape at once (`explainOfWire`) and held to what was sent (`explainProblem`): a rule broken
     // fails it whole, and so does a part the send required that didn't come back or one it leaves out
@@ -440,8 +481,20 @@ export function aiRouter(dbOf: DbOf, shared: Shared, serverKeys: Record<AiProvid
     }, ask.rule, "popupAction");
     if (!answer) return;
     const read = explainOfWire(answer.value);
+    // An answer that went with the trial's wordings is kept as a use, which its rating names; only one that answered.
+    const pick = send.trial ?? {};
+    const trial = trialPicked(pick) ? { pick, use: dbOf(res).promptTrial.keepUse(pick, now()) } : null;
     res.json({
-      explain: { text: read.reply, meanings: read.judged?.meanings ?? [], proposedMeaning: read.judged?.proposed ?? null, judged: read.judged !== null, asked, cut: false, ...spent(answer) },
+      explain: {
+        text: read.reply,
+        meanings: read.judged?.meanings ?? [],
+        proposedMeaning: read.judged?.proposed ?? null,
+        judged: read.judged !== null,
+        asked,
+        cut: false,
+        ...spent(answer),
+        ...(trial ? { trial } : {}),
+      },
       ai: statusOf(res),
     });
   });

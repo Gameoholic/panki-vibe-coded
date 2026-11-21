@@ -85,6 +85,7 @@ Paths from `apps/web/src/`.
 | TodayBar | `components/TodayBar.tsx` | Today's cards folded to their counts (`TodayBar`, `todayWords`). |
 | Toggle | `components/Toggle.tsx` | Something on or off, a switch whose words say its state (`Toggle`, `says`). Never a native checkbox, never one label for both states. |
 | TouchUp | `components/TouchUp.tsx` | Touch up as it's drawn: its head, a proposal under a field, examples row by row (`Tied`, `fieldShown`, `ExamplesDiff`, `UnmarkAi`). One proposal. |
+| TrialThumbs | `components/TrialThumbs.tsx` | The blind trial's rating under an answer: a quiet thumb up and thumb down, one press, again to take it back (`TrialThumbs`). Temporary. |
 | aiScenes | `explainers/aiScenes.tsx` | What Settings → Panki AI's explainers play, each action at work, made of the real pieces (`AiScene`). |
 | examples | `explainers/examples.ts` | The made-up examples Panki's features are shown at work with (`IN_DECKS`, `EXAMPLE_SENTENCE`, `EXAMPLE_TRANSCRIPT`, `EXAMPLE_ANSWERS`). Never the account's own cards. |
 | reviewScenes | `explainers/reviewScenes.tsx` | What Settings → General → Reviews' explainers play, on Panki's own review: Start cards blurred, Time left, Time studying (`BlurScene`, `TimeLeftScene`, `TimeStudyingScene`). |
@@ -179,6 +180,7 @@ Shapes and the rules on them, imported from `@panki/contracts` by the web, the A
 | pieces | `pieces.ts` | Prompt context's pieces, one registry shared with the Field mapping (`PROMPT_PIECE_IDS`, `PIECE_NAMES`, `PIECE_SOURCES`, `variableOf`). |
 | pitch | `pitch.ts` | A pitch accent as a field holds it, read leniently (`PitchAccent`, `pitchesOf`, `moraeOf`, `isHigh`, `pitchValue`). |
 | prompt | `prompt.ts` | A Panki AI prompt filled from its pieces, what Explain sends and answers, and a call's cost before it runs (`aiSent`, `ExplainMessage`, `ExplainShape`, `ceilingMicros`). |
+| promptTrial | `promptTrial.ts` | The blind trial of the Word pop-up's Explain and Context wordings, temporary (`TRIAL_SETS`, `TrialPick`, `TrialRun`, `TrialResults`). |
 | proofread | `proofread.ts` | Proofread as shapes: its answer, the rules it's held to, its batches, a transcript's undo (`ProofreadShape`, `proofreadProblem`, `batchesOf`, `TranscriptUndo`). |
 | recap | `recap.ts` | A finished video's recap as Panki works it out (`VideoRecap`, `RECAP`, `sessionsOf`, `watchedOf`): its cards, its watch sessions, its channel, what's next. |
 | reviewSettings | `reviewSettings.ts` | How every review runs, the account's, the same for every deck, and the defaults (`ReviewSettings`, `DEFAULT_REVIEW_SETTINGS`, `ExampleShown`, `againPlaceOf`). |

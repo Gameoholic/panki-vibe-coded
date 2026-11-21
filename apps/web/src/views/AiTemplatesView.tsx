@@ -36,7 +36,6 @@ import { Skeleton } from "../components/Skeleton";
 import { TextField } from "../components/TextField";
 import { AiScene } from "../explainers/aiScenes";
 import { rememberShape, shapeOf } from "../skeletonMemory";
-
 type Props = {
   /** Panki AI as it stands, with the account's own templates; null while it loads. */
   ai: PankiAiStatus | null;

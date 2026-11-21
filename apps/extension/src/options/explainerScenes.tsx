@@ -836,8 +836,8 @@ function ReminderScene({ store }: { store: Stored }) {
   );
 }
 
-/** A short skip by line in the example: how far back the line playing starts, and on the next, in seconds, and what's shown as it goes. */
-const SKIP_LINES = { back: 1.4, on: 3.2, backWords: "Start of the line", onWords: "Next line" };
+/** A short skip by line in the example: how far back the line before the one playing starts, and on the next, in seconds, and what's shown as it goes. */
+const SKIP_LINES = { back: 4.6, on: 3.2, backWords: "Previous line", onWords: "Next line" };
 
 /** YouTube utilities, each as it's set: the speed button, when the video will end, a short skip, Shorts shown or gone. */
 function UtilitiesScene({ store }: { store: Stored }) {
@@ -889,8 +889,8 @@ function UtilitiesScene({ store }: { store: Stored }) {
     const skipBy = shortSkipOf(store);
     if (skipBy !== "off") {
       const key = keyWordOf(store.shortSkipKey);
-      // By time, the seconds set each way; by line, back to the start of the line playing (the video is past it) and
-      // on to the next, as far as the example's lines lie apart.
+      // By time, the seconds set each way; by line, back to the start of the line before the one playing and on to the
+      // next, as far as the example's lines lie apart.
       const by = skipBy === "line" ? SKIP_LINES : { back: store.shortSkipSeconds, on: store.shortSkipSeconds, backWords: `−${store.shortSkipSeconds} s`, onWords: `+${store.shortSkipSeconds} s` };
       await t.move([30, 30], 400);
       t.hold(key);

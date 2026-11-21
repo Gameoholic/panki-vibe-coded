@@ -42,6 +42,7 @@ import {
   RuleRunAnswer,
   type RuleRunAsk,
   type RuleRunStop,
+  type TrialRating,
   ServerDictionaryList,
   SettingsResponse,
   SrsTypeList,
@@ -315,6 +316,9 @@ export const panki = {
   /** A rule's run on a trigger a page heard (a video plays): Panki holds its caps and keeps the go or the stop as the rule's run. */
   ruleRun: ({ address, token }: Door, ruleId: string, run: RuleRunAsk): Promise<RuleRunAnswer> =>
     call(address, token, `/api/rules/${id(ruleId)}/runs`, json("POST", run), (b) => RuleRunAnswer.parse(b)),
+  /** A thumb under an answer of the blind trial, given or taken back (null), by its use (temporary, `promptTrial.ts`). */
+  trialRate: ({ address, token }: Door, use: number, rating: TrialRating | null): Promise<void> =>
+    call(address, token, `/api/ai/trial/${use}`, json("POST", { rating }), () => undefined),
   /** A rule's run stopped part-way at a cap only this browser holds (a download grown past its MB), kept as the run's row. */
   ruleStopped: ({ address, token }: Door, ruleId: string, stop: RuleRunStop): Promise<void> =>
     call(address, token, `/api/rules/${id(ruleId)}/runs/stopped`, json("POST", stop), () => undefined),

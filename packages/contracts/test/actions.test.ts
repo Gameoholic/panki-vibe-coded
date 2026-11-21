@@ -44,7 +44,12 @@ import {
   cardPiecesOf,
   keysWithLines,
   sentenceLinesOf,
+  trialPickFor,
+  trialResultsOf,
+  withTrial,
+  type ExplainSend,
 } from "../src/aiActions";
+import { TRIAL_SETS, TrialPick, trialPicked, trialResultsText, trialUsesOf } from "../src/promptTrial";
 import { aiSent, explainProblem } from "../src/prompt";
 import { touchUpProblem, type TouchUpNow } from "../src/touchUp";
 
@@ -440,28 +445,71 @@ test("One of Panki's actions added since an account set its order and defaults: 
     defaults: { card: ["touchUp", "a1b2"], word: ["explain", "explainNuance"] },
   };
   assert.equal(ids(book, "card").at(-1), "cardContext");
-  assert.equal(ids(book, "word")[4], "explainContext");
-  assert.equal(ids(book, "word").at(-1), "contextHarbor");
+  assert.equal(ids(book, "word").at(-1), "explainContext");
   assert.deepEqual(openingActionsOf(book, "card"), ["touchUp", "a1b2"]);
   assert.deepEqual(openingActionsOf(book, "word"), ["explainNuance", "explain"]);
 });
 
-test("The blind trial: five of Explain and five of Context in the Word pop-up, each needing what its action needs, one the action's words, none ticked", () => {
-  const trial = actionsOf(NO_ACCOUNT_ACTIONS, "word").slice(5);
-  for (const [of, action] of [["Explain", AI_ACTIONS.explain], ["Context", AI_ACTIONS.explainContext]] as const) {
-    const set = trial.filter((each) => each.name.startsWith(`${of} · `));
-    assert.equal(set.length, 5, of);
-    assert.ok(set.every((each) => each.place === "word" && each.leaves.length === 0 && each.seconds === action.seconds), of);
-    assert.ok(set.every((each) => JSON.stringify(each.requires) === JSON.stringify(action.requires)), of);
-    // One is the control, word for word, and not first in the list.
-    assert.equal(set.filter((each) => each.words === action.words).length, 1, of);
-    assert.notEqual(set[0]?.words, action.words, of);
-    assert.equal(new Set(set.map((each) => each.words)).size, 5, of);
+test("The blind trial: five wordings each of Explain and Context, each needing what its action needs, one the action's words, never listed", () => {
+  for (const base of ["explain", "explainContext"] as const) {
+    const action = AI_ACTIONS[base];
+    const set = TRIAL_SETS[base].map((id) => AI_ACTIONS[id]);
+    assert.equal(set.length, 5, base);
+    assert.ok(set.every((each) => each.place === "word" && each.leaves.length === 0 && each.seconds === action.seconds), base);
+    assert.ok(set.every((each) => JSON.stringify(each.requires) === JSON.stringify(action.requires)), base);
+    // One is the control, word for word, and not first in the set.
+    assert.equal(set.filter((each) => each.words === action.words).length, 1, base);
+    assert.notEqual(set[0]?.words, action.words, base);
+    assert.equal(new Set(set.map((each) => each.words)).size, 5, base);
   }
-  assert.equal(trial.length, 10);
+  // Never in a list, never restorable, never ticked: the word's composer lists plain Explain and Context.
+  assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "word"), ["explain", "explainGrammar", "explainConjugation", "explainNuance", "explainContext"]);
+  assert.deepEqual(restorableOf({ ...NO_ACCOUNT_ACTIONS, hidden: ["explainPebble"] }, "word"), []);
   assert.deepEqual(openingActionsOf(NO_ACCOUNT_ACTIONS, "word"), ["explain"]);
+  assert.equal(litOf(NO_ACCOUNT_ACTIONS, "word", ["explainPebble"]), null);
   // The card's actions are as they were.
   assert.deepEqual(ids(NO_ACCOUNT_ACTIONS, "card"), ["touchUp", "cardExplain", "cardGrammar", "cardConjugation", "cardNuance", "cardContext"]);
+});
+
+test("The trial's pick: each action on trial the least used of its set, a random one among ties; none for an edited one", () => {
+  const none = trialPickFor(NO_ACCOUNT_ACTIONS, ["explainGrammar"], {});
+  assert.deepEqual(none, {});
+  assert.equal(trialPicked(none), false);
+  // All tied: the random number picks among the whole set, in its order.
+  assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain", "explainContext"], {}, () => 0), { explain: "explainPebble", explainContext: "contextMitten" });
+  assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain"], {}, () => 0.99), { explain: "explainLadder" });
+  // The least used goes next.
+  const uses = { explainPebble: 2, explainTeapot: 2, explainLantern: 1, explainWalrus: 2, explainLadder: 2 };
+  assert.deepEqual(trialPickFor(NO_ACCOUNT_ACTIONS, ["explain"], uses, () => 0.5), { explain: "explainLantern" });
+  // Explain the account edited is its own words: nothing on trial there.
+  const edited: AccountActions = { ...NO_ACCOUNT_ACTIONS, saved: [{ ...AI_ACTIONS.explain, words: "Mine.", requires: [...AI_ACTIONS.explain.requires], leaves: [] }] };
+  assert.deepEqual(trialPickFor(edited, ["explain"], {}), {});
+});
+
+test("A message sent with its pick says the wording's words under the action's own name; the results count uses and each answer's latest thumb", () => {
+  const send: ExplainSend = { actions: ["explain"], text: "", trial: { explain: "explainWalrus" } };
+  assert.equal(explainSendPieces(send, NO_ACCOUNT_ACTIONS).message, AI_ACTIONS.explainWalrus.words);
+  assert.equal(explainSendPieces({ actions: ["explain"], text: "" }, NO_ACCOUNT_ACTIONS).message, AI_ACTIONS.explain.words);
+  assert.deepEqual(withTrial(NO_ACCOUNT_ACTIONS, word("explain"), send.trial).map((action) => action.name), ["Explain"]);
+  // A pick of another set's wording isn't one.
+  assert.equal(TrialPick.safeParse({ explain: "contextKettle" }).success, false);
+  const uses = [
+    { id: 1, pick: { explain: "explainWalrus" as const } },
+    { id: 2, pick: { explain: "explainWalrus" as const, explainContext: "contextKettle" as const } },
+  ];
+  const results = trialResultsOf(uses, [
+    { use: 1, rating: "up" },
+    { use: 2, rating: "up" },
+    { use: 2, rating: "down" },
+  ]);
+  assert.deepEqual(results.sets.map((set) => set.name), ["Explain", "Context"]);
+  assert.deepEqual(results.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 2, up: 1, down: 1 });
+  assert.deepEqual(results.sets[1]?.rows.find((row) => row.codename === "Kettle"), { codename: "Kettle", used: 1, up: 0, down: 1 });
+  assert.deepEqual(trialUsesOf(uses), { explainWalrus: 2, contextKettle: 1 });
+  // A rating of a use that isn't among those read (one from before Clear results) counts for nothing.
+  const cleared = trialResultsOf([{ id: 7, pick: { explain: "explainWalrus" } }], [{ use: 1, rating: "up" }]);
+  assert.deepEqual(cleared.sets[0]?.rows.find((row) => row.codename === "Walrus"), { codename: "Walrus", used: 1, up: 0, down: 0 });
+  assert.ok(trialResultsText(results).startsWith("Explain:\n- Pebble: used 0, 👍 0, 👎 0"));
 });
 
 test("The defaults ticked as a conversation opens are the account's once set, in the place's order, Panki's until then", () => {

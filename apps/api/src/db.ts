@@ -129,6 +129,7 @@ import { hashOf, whileUnchanged } from "./kept";
 import { newDoneMoments } from "./newDone";
 import { PACE_DAYS, paceFor, pacesOf, type PaceAnswer } from "./pace";
 import { foldUndone } from "./undone";
+import { promptTrialStore } from "./promptTrial";
 import { clipReader } from "./clips";
 import { dayTalliesOf, streakStatesOf, streaksStamped, type DeckChange } from "./streaks";
 import { aheadOf, aheadOver, frameSpan, restOf, tilesOf, type TileCard, type TileShowing } from "./tiles";
@@ -3360,6 +3361,8 @@ export function openDb(dataDir: string, now: () => number = Date.now, timeZone: 
         for (const event of events) insertEvent.run(now, event.at, event.kind, event.path ?? null, JSON.stringify(event.data ?? {}), who.sessionId, who.device);
       });
     },
+    /** The blind trial of the Word pop-up's wordings, kept in the ledger (temporary: `promptTrial.ts`). */
+    promptTrial: promptTrialStore(db),
     /**
      * Keeps what was watched: each video's words as the page told them, and each stretch, stamped by the API's clock
      * with the device it was watched on. A stretch sent again is the one already kept. Whatever arrives is kept: whether

@@ -70,6 +70,7 @@ import { SubtitleStyleFields } from "../components/SubtitleStyleFields";
 import type { UnsavedGuard } from "../unsaved";
 import { AiPromptSection } from "./AiPromptSection";
 import { AiTemplatesTab } from "./AiTemplatesView";
+import { PromptTrialPanel } from "./PromptTrialPanel";
 import type { SaveStatus } from "./SrsTypeView";
 import { KeysPanels } from "./KeysSettings";
 import { ReviewsPanel } from "./ReviewsPanel";
@@ -108,7 +109,7 @@ type Props = {
  * `/settings#ai` for the templates); every tab is drawn and the others hidden, so a key half typed on one survives a
  * look at another. What an admin alone changes is a screen of its own, at the bar's far end (`AdminView`).
  */
-export type SettingsTab = "general" | "keys" | "ai" | "automations" | "extension" | "account";
+export type SettingsTab = "general" | "keys" | "ai" | "automations" | "extension" | "account" | "trial";
 const TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "keys", label: "Keybinds" },
@@ -116,6 +117,8 @@ const TABS: readonly { id: SettingsTab; label: string }[] = [
   { id: "automations", label: "Automations" },
   { id: "extension", label: "Extension" },
   { id: "account", label: "Account" },
+  // Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS).
+  { id: "trial", label: "Prompt trial" },
 ];
 /** The tab the address names (`#general`), of a page's tabs; null when it names none. */
 const tabOfAddress = <T extends string>(tabs: readonly { id: T }[]): T | null => tabs.find((t) => `#${t.id}` === window.location.hash)?.id ?? null;
@@ -1368,7 +1371,7 @@ export function SettingsView({
 
   return (
     <>
-      {/* Six tabs: on a phone, two rows of three, as Admin's are. */}
+      {/* Seven tabs while the prompt trial runs: on a phone they wrap, as Admin's do. */}
       <Segmented idPrefix="settings-tab" label="Settings" options={TABS} value={shown} wraps onChange={choose} />
       <div className="settings-tab" hidden={shown !== "general"}>
         {failure ? (
@@ -1534,6 +1537,11 @@ export function SettingsView({
       <div className="settings-tab" hidden={shown !== "extension"}>
         <ExtensionPanel />
         <DataTrackingPanel day={daysOf(current)} />
+      </div>
+
+      {/* Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS). */}
+      <div className="settings-tab" hidden={shown !== "trial"}>
+        <PromptTrialPanel />
       </div>
 
       <div className="settings-tab" hidden={shown !== "account"}>

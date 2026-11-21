@@ -9395,6 +9395,44 @@ mark.search-lit {
   width: 16px;
   height: 16px;
 }
+/* Settings → Panki AI's Prompt trial (`PromptTrialPanel`, temporary): a set a small table, its name over it, the counts
+   in a column each, right-aligned. */
+.prompt-trial-table {
+  width: 100%;
+  margin-bottom: 14px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.prompt-trial-table caption {
+  padding-bottom: 4px;
+  text-align: left;
+  font-weight: 700;
+}
+.prompt-trial-table th,
+.prompt-trial-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.prompt-trial-table th:first-child {
+  text-align: left;
+  font-weight: 600;
+}
+.prompt-trial-table thead th {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* The blind trial's thumbs under an answer (`TrialThumbs`, temporary): quiet, side by side; the one given in the accent. */
+.trial-thumbs {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+}
+.quiet-icon > .btn-icon[aria-pressed="true"] {
+  color: var(--accent);
+}
 /* The conversation's knobs, beside the actions at the left: its settings, then Clear conversation, each a quiet icon,
    as far apart as everything else in the row (its own gap, inherited). */
 .composer-knobs-buttons {

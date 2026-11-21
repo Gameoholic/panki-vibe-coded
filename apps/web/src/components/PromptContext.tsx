@@ -55,10 +55,14 @@ const COPY_LOOKS: Record<"copy" | "copied" | "failed", { icon: "copy" | "check" 
   failed: { icon: "alert", words: "Couldn't copy" },
 };
 
-/** Some words to the clipboard: Copy, then Copied with a tick. Its words are stacked, so it's as wide in every state. */
-export function CopyButton({ id, text, disabled = false }: { id: string; text: string; disabled?: boolean }) {
+/**
+ * Some words to the clipboard: Copy (or what `words` names it, "Copy results"), then Copied with a tick. Its words are
+ * stacked, so it's as wide in every state.
+ */
+export function CopyButton({ id, text, words, disabled = false }: { id: string; text: string; words?: string; disabled?: boolean }) {
   const [copied, setCopied] = useState<Copied>(null);
   const now = copied ?? "copy";
+  const said = (look: keyof typeof COPY_LOOKS) => (look === "copy" && words ? words : COPY_LOOKS[look].words);
   async function copy() {
     try {
       await navigator.clipboard.writeText(text);
@@ -85,7 +89,7 @@ export function CopyButton({ id, text, disabled = false }: { id: string; text: s
         {/* Copy and Copied hold the width; the rare Couldn't copy is let widen it rather than every button stand that wide. */}
         {(now === "failed" ? (["failed"] as const) : (["copy", "copied"] as const)).map((look) => (
           <span key={look} aria-hidden={look === now ? undefined : true}>
-            {COPY_LOOKS[look].words}
+            {said(look)}
           </span>
         ))}
       </span>

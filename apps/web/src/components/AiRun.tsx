@@ -476,6 +476,7 @@ export function QuietIconButton({
   words,
   open,
   controls,
+  pressed,
   disabled = false,
   onClick,
 }: {
@@ -485,6 +486,8 @@ export function QuietIconButton({
   words: string;
   open: boolean;
   controls?: string;
+  /** A button that's on or off (a thumb given): said as pressed, and it opens nothing. */
+  pressed?: boolean;
   disabled?: boolean;
   onClick: () => void;
 }) {
@@ -495,7 +498,8 @@ export function QuietIconButton({
         ref={ref}
         className="btn-icon"
         aria-label={words}
-        aria-expanded={open}
+        aria-expanded={pressed === undefined ? open : undefined}
+        aria-pressed={pressed}
         aria-controls={controls}
         disabled={disabled}
         onMouseEnter={() => setOver(true)}

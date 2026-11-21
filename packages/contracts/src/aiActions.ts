@@ -16,6 +16,7 @@ import {
 import { adminPromptOf, type AdminPromptPlaceId } from "./ai";
 import { taggedOf, variableOf } from "./pieces";
 import { PIECE_MAX, PromptPieces, Said } from "./prompt";
+import { TRIAL_ACTION_IDS, TRIAL_BASES, TRIAL_SETS, TrialPick, isTrialAction, type TrialActionId, type TrialBase, type TrialRating, type TrialResults } from "./promptTrial";
 import { RuleCall } from "./rules";
 import { MEANINGS_MAX, TouchUpNow, numberedSubtitles, subtitleLinesOf, type SubtitleLine } from "./touchUp";
 import { VALUE_MAX } from "./type";
@@ -35,19 +36,6 @@ import { VALUE_MAX } from "./type";
  * `AccountActions`). Everything below reads an action through the account's (`actionOf`, `actionsOf`), never the
  * registry alone.
  */
-/** The blind trial's actions (the key above `TRIAL_ACTIONS`), each set in its shuffled order: after all of Panki's others. */
-const TRIAL_ACTION_IDS = [
-  "explainPebble",
-  "explainTeapot",
-  "explainLantern",
-  "explainWalrus",
-  "explainLadder",
-  "contextMitten",
-  "contextAcorn",
-  "contextKettle",
-  "contextButton",
-  "contextHarbor",
-] as const;
 export const AI_ACTION_IDS = [
   "touchUp",
   "cardExplain",
@@ -103,13 +91,19 @@ const EXPLAIN_WORDS =
 const CONTEXT_WORDS =
   "Translate the sentence the word is in, naturally, then say in a line or two what it means where it stands: what the speaker means, or what they're answering or reacting to in the lines around it. Don't explain the word itself; I know it.";
 /** A trial's variant: a word's action under its codename, unticked, needing what the action it stands for needs. */
-const trial = (id: (typeof TRIAL_ACTION_IDS)[number], of: "Explain" | "Context", codename: string, words: string): AiAction =>
+const trial = (id: TrialActionId, of: "Explain" | "Context", codename: string, words: string): AiAction =>
   panki({ place: "word", name: `${of} · ${codename}`, words, requires: of === "Explain" ? EXPLAIN_PARTS : ["reply"] }, id);
 /**
- * A blind trial of the word's Explain and Context (the owner, 2026-11-20): which wording's answers the owner likes best,
- * what bothered them being extra they didn't need and answers too long. Each set is five actions of the Word pop-up,
- * named "Explain · <codename>" or "Context · <codename>", one of them the action's wording word for word (the control),
- * each needing what its action needs so every answer has the same shape. Nothing of this key is ever on screen.
+ * TEMPORARY, a blind A/B trial: when the owner pastes Prompt trial results, pick each set's winner and remove this whole
+ * feature, by the checklist at the end of this comment.
+ *
+ * What it is: a blind trial of the Word pop-up's Explain and Context wordings (the owner, 2026-11-20), to find which
+ * wording's answers the owner likes best, what bothered them being extra they didn't need and answers too long. Each
+ * set is five wordings, Panki actions of the Word pop-up named "Explain · <codename>" or "Context · <codename>", one of
+ * them the action's wording word for word (the control), each needing what its action needs so every answer has the
+ * same shape. Nothing of this key is ever on screen: the results name codenames alone.
+ *
+ * The key, each codename and what it tests:
  *
  * Explain:
  * - Pebble: one sentence, nothing else.
@@ -125,11 +119,75 @@ const trial = (id: (typeof TRIAL_ACTION_IDS)[number], of: "Explain" | "Context",
  * - Button: the control, `explainContext`'s words.
  * - Harbor: one sentence on what the speaker means there, no translation.
  *
- * Once the owner picks: the winner's words go into `explain` / `explainContext` and, where they fit, into the card's
- * `cardExplain` / `cardContext` ("the card's sentence" for "the sentence"); every id of `TRIAL_ACTION_IDS` moves to
- * `RETIRED_ACTION_IDS`, the rows accounts kept of them left as they are, read by nothing.
+ * How it runs (2026-11-21): Panki runs it, the owner picks nothing by hand. The variants are never listed (`actionsOf`,
+ * `restorableOf` skip `isTrialAction`); the composer shows plain Explain and Context. A message in the Word pop-up with
+ * Explain or Context ticked (Panki's as it comes, never an account's edited copy) goes with one wording of that set,
+ * picked by the server the first time it's sent (`routes/ai.ts` → `/word`, `trialPickFor`: the least used so far, a
+ * random one among ties, the control among them) and carried with it after (`ExplainSend.trial`, `withTrial`), so a
+ * later message rebuilds the first prompt as it went. Blind: the bubble and Details name "Explain" / "Context" (Details'
+ * prompt has the words that went). Each answer that went with a wording is a use, kept with its pick, and under it a
+ * quiet thumb up and thumb down (`TrialThumbs`), one press, again to take it back; uses and ratings are rows of the
+ * account's `events` ledger, no migration (`apps/api/src/promptTrial.ts`). Settings' Prompt trial tab shows per set
+ * each codename's uses, 👍 and 👎, with Copy results and Clear results (`PromptTrialPanel`): a clear is a third kind of
+ * row, and every read counts only the rows after the latest one, so the counts, the picks and the results start over
+ * and a thumb under an answer from before it is refused (the page puts it back). The card's actions are untouched.
+ *
+ * Choosing the winners, once the owner pastes the results (Settings → Prompt trial → Copy results: per set, each
+ * codename's "used", 👍 and 👎): each wording's score is (👍 − 👎) / used; the highest score in its set wins. Ask the owner
+ * instead of deciding when it's near: the top two within 0.1 of each other, or the top one used fewer than 5 times. The
+ * control winning (Lantern, Button) means the words stay as they are; the rest of the checklist still applies.
+ *
+ * The checklist, everything to change or take out (then `pnpm typecheck`, `pnpm build`, `pnpm docs:check`, the contracts
+ * and API tests):
+ * 1. The winners' words. Explain's into `EXPLAIN_WORDS` (what `explain` says), Context's into `CONTEXT_WORDS` (what
+ *    `explainContext` says), word for word. Then the card's pair, `cardExplain` and `cardContext`, in the card's way of
+ *    saying it: "In the reply, " first, "the card's word" for "the word", "the card's sentence" for "the sentence the
+ *    word is in", "in its sentence" for "here"; their `requires` stay `["reply"]`. The two constants may then be inlined
+ *    back into `explain` / `explainContext` as Panki's other actions are.
+ * 2. Contracts (`packages/contracts/src/`):
+ *    - `aiActions.ts`: this whole comment; `TRIAL_ACTIONS` and its spread at the end of `AI_ACTIONS`; `trial`;
+ *      `...TRIAL_ACTION_IDS` in `AI_ACTION_IDS`; every id of the trial (`explainPebble`, `explainTeapot`,
+ *      `explainLantern`, `explainWalrus`, `explainLadder`, `contextMitten`, `contextAcorn`, `contextKettle`,
+ *      `contextButton`, `contextHarbor`) added to `RETIRED_ACTION_IDS` (its comment saying why), so an account's rows of
+ *      them are read by nothing; the `!isTrialAction(id)` in `actionsOf` and `restorableOf`; the section "The blind
+ *      trial, run by Panki" (`codenameOf`, `onTrial`, `withTrial`, `trialPickFor`, `trialResultsOf`); `trial` in
+ *      `ExplainSend` and its comment; `withTrial(...)` in `explainSendPieces` (back to `litNow(book, "word",
+ *      send.actions)`); the `./promptTrial` import.
+ *    - `promptTrial.ts`: the whole file, and `export * from "./promptTrial"` in `index.ts`.
+ *    - `prompt.ts`: `trial` in `Explained` and the `./promptTrial` import.
+ *    - `test/actions.test.ts`: the tests "The blind trial…", "The trial's pick…", "A message sent with its pick…", the
+ *      trial's imports (`trialPickFor`, `trialResultsOf`, `withTrial`, `ExplainSend` if unused, `../src/promptTrial`),
+ *      and `.slice(0, 5)` taken off the word's lists where it was only there for the trial.
+ * 3. API (`apps/api/`):
+ *    - `src/promptTrial.ts`: the whole file; in `src/db.ts` its import and `promptTrial: promptTrialStore(db)`.
+ *    - `src/routes/ai.ts`: in `/word`, `trialOf`, the `opening` / `send` it builds (back to `const send = sendOf(ask)`
+ *      and `ask.opening`), the `pick` / `trial` kept after the answer and `...(trial ? { trial } : {})` in the reply; the
+ *      routes `GET /trial`, `POST /trial/clear`, `POST /trial/:use`; the imports `TrialRate`, `trialPickFor`,
+ *      `trialPicked`, `trialResultsOf`, `type ExplainSend`.
+ *    - `test/promptTrial.test.ts`, and `test/promptTrial.test.ts` in `package.json`'s test script.
+ *    - The ledger's rows of kind `promptTrialUse`, `promptTrialRating` and `promptTrialClear` stay in `events`, read by
+ *      nothing: no migration, nothing deleted.
+ * 4. Extension (`apps/extension/src/`):
+ *    - `messages.ts`: the `trialRate` ask, `askTrialRate`, the `TrialRating` import.
+ *    - `background.ts`: the `trialRate` branch. `panki.ts`: `trialRate` and the `TrialRating` import.
+ *    - `ui/Explain.tsx`: the `trials` state, `rateTrial`, the `TrialThumbs` in `notes` (back to `notesOf(made,
+ *      conversation)`), in `sendExplain` the `pick` / `asSent` rebuild (back to `answeredCall(call, …)`), the
+ *      `setOpening` with the pick and `setTrials`, `setTrials(new Map())` in `clearConversation`; the imports
+ *      `TrialThumbs`, `askTrialRate`, `type TrialRating`.
+ *    - `EXTENSION_PROTOCOL` stays as it is: an older extension never sent or read the trial.
+ * 5. Web (`apps/web/src/`):
+ *    - `components/TrialThumbs.tsx` and `views/PromptTrialPanel.tsx`: the whole files.
+ *    - `views/SettingsView.tsx`: the Prompt trial tab, its `TABS` entry, `"trial"` in `SettingsTab`, its
+ *      `.settings-tab`, the `PromptTrialPanel` import; the tabs' comment back to six.
+ *    - `api.ts`: `trialResults`, `clearTrial`, the `TrialResultsResponse` / `TrialResults` imports.
+ *    - `components/Icon.tsx`: `thumbUp` and `thumbDown`, if nothing else draws them.
+ *    - `components/AiRun.tsx`: `QuietIconButton`'s `pressed`, if nothing else passes it (and `aria-expanded` back to
+ *      `open`). `components/PromptContext.tsx`: `CopyButton`'s `words`, if nothing else names one.
+ *    - `app.css`: `.prompt-trial-table…`, `.trial-thumbs` and `.quiet-icon > .btn-icon[aria-pressed="true"]`.
+ * 6. Docs: the TrialThumbs and promptTrial rows of `docs/COMPONENTS.md`; the line under Under way in `docs/STATUS.md`
+ *    (a line of what changed under built-not-yet-seen in its place, the winners named); the entry in `docs/BACKLOG.md`.
  */
-const TRIAL_ACTIONS: Record<(typeof TRIAL_ACTION_IDS)[number], AiAction> = {
+const TRIAL_ACTIONS: Record<TrialActionId, AiAction> = {
   explainPebble: trial("explainPebble", "Explain", "Pebble", "In one sentence, say what the word means here. Nothing else: no grammar, no form, no register, no other meanings; I can ask for those."),
   explainTeapot: trial(
     "explainTeapot",
@@ -336,7 +394,8 @@ export function actionOf(book: AccountActions, id: string): AiAction | null {
  */
 export function actionsOf(book: AccountActions, place: ActionPlaceId): AiAction[] {
   const own = book.saved.filter((each) => each.place === place && !isPankiAction(each.id) && isLiveActionId(each.id)).map((each) => each.id);
-  const all = [...AI_ACTION_IDS.filter((id) => AI_ACTIONS[id].place === place), ...own];
+  // The blind trial's wordings are never listed: Panki picks one in a message's stead (`trialPickFor`).
+  const all = [...AI_ACTION_IDS.filter((id) => AI_ACTIONS[id].place === place && !isTrialAction(id)), ...own];
   const ordered = [...(book.order[place] ?? []).filter((id) => all.includes(id)), ...all];
   return [...new Set(ordered)].flatMap((id) => {
     const action = actionOf(book, id);
@@ -356,7 +415,7 @@ export const actionKindOf = (book: AccountActions, id: string): ActionKind =>
   !isPankiAction(id) ? "own" : book.saved.some((each) => each.id === id) ? "edited" : "panki";
 /** Panki's actions of a place the account edited or deleted, in the registry's order: what Restore brings back as Panki's own. */
 export const restorableOf = (book: AccountActions, place: ActionPlaceId): PankiActionId[] =>
-  AI_ACTION_IDS.filter((id) => AI_ACTIONS[id].place === place && (book.hidden.includes(id) || book.saved.some((each) => each.id === id)));
+  AI_ACTION_IDS.filter((id) => AI_ACTIONS[id].place === place && !isTrialAction(id) && (book.hidden.includes(id) || book.saved.some((each) => each.id === id)));
 /**
  * The actions a message is made of, by its ids, in the place's order (so their words come in it); null when one of them
  * isn't the place's for this account (deleted on another device, or another place's), so a message is never sent with
@@ -640,6 +699,54 @@ export type TouchUpAsk = z.infer<typeof TouchUpAsk>;
 /** The message being answered: the conversation's first, or the one after it. The card's and the word's alike. */
 export const sendOf = <S>(ask: { opening: S; said: readonly unknown[]; send?: S | undefined }): S => (ask.said.length > 0 && ask.send ? ask.send : ask.opening);
 
+// ---------- The blind trial, run by Panki
+// Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS).
+
+/** A wording's codename, as the results name it: its name after the dot ("Explain · Pebble" → "Pebble"). */
+const codenameOf = (id: TrialActionId): string => AI_ACTIONS[id].name.split(" · ")[1] ?? id;
+/** Whether an action is on trial for this account: one of `TRIAL_SETS`, Panki's as it comes (an edited one is the account's own words). */
+const onTrial = (book: AccountActions, id: string): id is TrialBase => id in TRIAL_SETS && actionKindOf(book, id) === "panki";
+/**
+ * A message's actions with the trial's wordings in: each one the pick names says its wording's words under its own id
+ * and name, so the bubble and Details still say "Explain"; every knob the same, so the answer's shape is too.
+ */
+export function withTrial(book: AccountActions, lit: readonly AiAction[], pick: TrialPick | undefined): AiAction[] {
+  return lit.map((action) => {
+    const variant = pick && onTrial(book, action.id) ? pick[action.id] : undefined;
+    return variant ? { ...action, words: AI_ACTIONS[variant].words } : action;
+  });
+}
+/**
+ * The wordings for a message's actions on trial: for each, the least used of its set so far (`uses`, by wording), a
+ * random one among those tied, so they even out. Empty for a message with none on trial.
+ */
+export function trialPickFor(book: AccountActions, actions: readonly string[], uses: Readonly<Record<string, number>>, random: () => number = Math.random): TrialPick {
+  const pick: TrialPick = {};
+  for (const base of TRIAL_BASES) {
+    if (!actions.includes(base) || !onTrial(book, base)) continue;
+    const set = TRIAL_SETS[base];
+    const least = Math.min(...set.map((id) => uses[id] ?? 0));
+    const tied = set.filter((id) => (uses[id] ?? 0) === least);
+    const chosen = tied[Math.min(tied.length - 1, Math.floor(random() * tied.length))];
+    if (chosen) pick[base] = chosen;
+  }
+  return pick;
+}
+/** The trial's results from what's kept: each use's pick, and every rating in the order given, an answer's latest standing. */
+export function trialResultsOf(uses: readonly { id: number; pick: TrialPick }[], ratings: readonly { use: number; rating: TrialRating | null }[]): TrialResults {
+  const latest = new Map<number, TrialRating | null>();
+  for (const each of ratings) latest.set(each.use, each.rating);
+  return {
+    sets: TRIAL_BASES.map((base) => ({
+      name: AI_ACTIONS[base].name,
+      rows: TRIAL_SETS[base].map((id) => {
+        const went = uses.filter((use) => use.pick[base] === id);
+        const rated = went.map((use) => latest.get(use.id) ?? null);
+        return { codename: codenameOf(id), used: went.length, up: rated.filter((r) => r === "up").length, down: rated.filter((r) => r === "down").length };
+      }),
+    })),
+  };
+}
 // ---------- A word's messages ("Touch up, steered" step 4)
 
 /** The parts a word's message requires to come back: the union of its ticked actions' `requires`, in the parts' order. */
@@ -668,13 +775,13 @@ export const explainLeftOutFor = (lit: readonly AiAction[]): ExplainPart[] => le
 /**
  * One message of a word's conversation as the pop-up sends it: the actions ticked, what was typed, the conversation's
  * own reach as it was sent when one was set, and, for a later message reaching further than the first's (`widerOf`),
- * the subtitles that far each way.
+ * the subtitles that far each way; and, once Panki picked them, the blind trial's wordings it went with (`trial`).
  */
-export const ExplainSend = z.object({ actions: actionsSent, text: z.string().max(TEXT_MAX), reach: ReachSent, wider: z.string().max(PIECE_MAX).optional() });
+export const ExplainSend = z.object({ actions: actionsSent, text: z.string().max(TEXT_MAX), reach: ReachSent, wider: z.string().max(PIECE_MAX).optional(), trial: TrialPick.optional() });
 export type ExplainSend = z.infer<typeof ExplainSend>;
-/** A message's own pieces, its actions read through the account's: its message (the user's), Panki's requirements apart from it, and its wider subtitles. */
+/** A message's own pieces, its actions read through the account's (the trial's wordings in, `withTrial`): its message (the user's), Panki's requirements apart from it, and its wider subtitles. */
 export const explainSendPieces = (send: ExplainSend, book: AccountActions): PromptPieces => {
-  const lit = litNow(book, "word", send.actions);
+  const lit = withTrial(book, litNow(book, "word", send.actions), send.trial);
   return { message: messageOf(lit, send.text), requirements: explainRequirementsOf(lit), ...(send.wider ? { wider: send.wider } : {}) };
 };
 /**

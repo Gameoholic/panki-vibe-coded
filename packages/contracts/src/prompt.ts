@@ -4,6 +4,7 @@ import { ACTION_SECONDS_MAX, DEFAULT_ACTION_SECONDS, EXPLAIN_PARTS, ExplainPart 
 import { AiRanOn, PankiAiStatus, tokenCostMicros, type AiModel, type PankiAi } from "./ai";
 import { Judgement } from "./judgement";
 import { FORMER_NAMES, PIECE_NAMES, PROMPT_PIECE_IDS, PromptPieceId } from "./pieces";
+import { TrialRun } from "./promptTrial";
 import { VIDEO_END_TAIL_MS } from "./transcription";
 import { KNOB_BREACHES, expectedGot, knobsBroken } from "./unread";
 
@@ -320,6 +321,8 @@ export const Explained = z.object({
   costMicros: z.number().int().nonnegative(),
   /** The provider and model the call ran on (`AiRanOn`): Details name it, never the page's own copy. */
   ranOn: AiRanOn.optional(),
+  /** The blind trial's wordings it went with, and the use kept of them (`promptTrial.ts`, temporary); none for a message with none on trial. */
+  trial: TrialRun.optional(),
 });
 export type Explained = z.infer<typeof Explained>;
 export const ExplainResponse = z.object({ explain: Explained, ai: PankiAiStatus });

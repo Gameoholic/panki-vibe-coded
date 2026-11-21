@@ -2,6 +2,7 @@ export * from "./accountActions";
 export * from "./ai";
 export * from "./aiCall";
 export * from "./aiActions";
+export * from "./promptTrial";
 export * from "./aiTemplates";
 export * from "./api";
 export * from "./auth";

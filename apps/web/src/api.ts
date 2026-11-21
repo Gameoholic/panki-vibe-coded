@@ -20,6 +20,8 @@ import {
   AiTemplateResponse,
   AiActionResponse,
   AiActionsResponse,
+  TrialResultsResponse,
+  type TrialResults,
   UsageResponse,
   type AccountActions,
   type AiActionUpdate,
@@ -274,6 +276,10 @@ export const api = {
   restoreAiAction: (actionId: string): Promise<AccountActions> => request(`${actionPath(actionId)}/restore`, send("POST"), (b) => AiActionsResponse.parse(b).actions),
   /** A place's actions in the account's order, and those ticked as its conversation opens. */
   arrangeAiActions: (arrange: AiActionsArrange): Promise<AccountActions> => request("/api/ai/actions", send("PUT", arrange), (b) => AiActionsResponse.parse(b).actions),
+  /** The blind trial's results so far (temporary, `promptTrial.ts`): per set, each wording by its codename. */
+  trialResults: (): Promise<TrialResults> => request("/api/ai/trial", undefined, (b) => TrialResultsResponse.parse(b).results),
+  /** Clear results: the blind trial starts over, nothing destroyed; the results as they are then, empty. */
+  clearTrial: (): Promise<TrialResults> => request("/api/ai/trial/clear", send("POST"), (b) => TrialResultsResponse.parse(b).results),
   /** Makes one of the account's own Panki AI templates (a copy, or empty); Panki gives it its id. Its action is fixed from here on. */
   addAiTemplate: (template: NewAiTemplate): Promise<AiTemplate> => request("/api/ai/templates", send("POST", template), (b) => AiTemplateResponse.parse(b).template),
   /** Saves one of the account's own templates; Panki's own starters can't be. */

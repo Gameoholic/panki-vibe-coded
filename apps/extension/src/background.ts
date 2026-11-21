@@ -623,6 +623,11 @@ async function answer(
     if (ask.kind === "called") return { ok: true, cards: await panki.cardsCalled(door, ask.words) };
     // The account's rules: a run asked on a trigger the page heard, Panki holding every cap; a rule switched from a page.
     if (ask.kind === "ruleRun") return { ok: true, answer: await panki.ruleRun(door, ask.ruleId, ask.run) };
+    // Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS).
+    if (ask.kind === "trialRate") {
+      await panki.trialRate(door, ask.use, ask.rating);
+      return { ok: true };
+    }
     // Panki AI, through Panki's server, which holds the key and calls the provider. Its answer, or its reasoned refusal,
     // says how Panki AI stands now: kept in place of what was.
     if (ask.kind === "explain") {

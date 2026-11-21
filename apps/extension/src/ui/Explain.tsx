@@ -48,6 +48,7 @@ import {
   type PromptPieceId,
   type PromptPieces,
   type RuleCall,
+  type TrialRating,
 } from "@panki/contracts";
 import { ruleWords } from "@web/ruleKinds";
 import { aiActionOf, automationOf } from "../automations";
@@ -61,7 +62,8 @@ import type { Pointed } from "../capture/look";
 import { sentenceAround } from "../capture/selection";
 import type { Found } from "../dictionary/found";
 import { dictionaryPieces } from "../dictionary/pieces";
-import { askAiState, askAiStop, askExplain, askRules, type AiShown } from "../messages";
+import { askAiState, askAiStop, askExplain, askRules, askTrialRate, type AiShown } from "../messages";
+import { TrialThumbs } from "@web/components/TrialThumbs";
 import { glossaryText } from "./Glossary";
 
 /**
@@ -282,6 +284,9 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
    */
   const [reachSet, setReachSet] = useState<number | null>(null);
   const [marks, setMarks] = useState<readonly ConversationMark[]>([]);
+  // Temporary: the prompt trial, removed whole once the owner picks (aiActions.ts → the key above TRIAL_ACTIONS).
+  /** The blind trial's answers here, by their commit's id: the use a rating names, and the rating given. */
+  const [trials, setTrials] = useState<ReadonlyMap<number, { use: number; rating: TrialRating | null }>>(new Map());
   const gate = useAskFirst();
   /** Stop, for a message pressed here (never the automation's), cut in the worker by its name. */
   const stopper = useStop((name) => void askAiStop(name));
@@ -434,7 +439,33 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
       } else setAsking({ ...pending, failure: failed });
     } else {
       const done = answer.explain;
-      setCalls((was) => was.map((each) => (each === call ? answeredCall(call, done, now, explainVerdicts(found, done)) : each)));
+      // The blind trial's wordings Panki picked for it (temporary): the conversation's first keeps them, sent with every
+      // later message so its prompt is rebuilt as it went, and Details say what was sent with them in.
+      const pick = done.trial?.pick;
+      const asSent = pick
+        ? {
+            ...startCall({
+              label,
+              why,
+              settings,
+              template,
+              pieces,
+              gaps,
+              said,
+              asking: firstSend ? {} : explainSendPieces({ ...send, trial: pick }, book),
+              opening: explainSendPieces(firstSend ? { ...first, trial: pick } : first, book),
+              now: call.sentAt,
+              ...(call.steering ? { steering: call.steering } : {}),
+            }),
+            ceilingMicros: call.ceilingMicros,
+          }
+        : call;
+      if (pick && firstSend) setOpening({ ...send, trial: pick });
+      if (done.trial) {
+        const use = done.trial.use;
+        setTrials((was) => new Map(was).set(pending.id, { use, rating: null }));
+      }
+      setCalls((was) => was.map((each) => (each === call ? answeredCall(asSent, done, now, explainVerdicts(found, done)) : each)));
       const made: Commit<Judging> = {
         id: pending.id,
         run: pending.run,
@@ -517,6 +548,15 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     if (at.bottom > room.bottom) scroller.scrollTop += Math.max(0, Math.min(at.bottom - room.bottom, at.top - room.top));
   }, [conversation.main.length, asking?.id]);
 
+  /** A thumb given under an answer of the blind trial, or taken back: shown at once, kept on Panki, as it was again if that fails. */
+  function rateTrial(commitId: number, trial: { use: number; rating: TrialRating | null }, rating: TrialRating | null) {
+    const was = trial.rating;
+    const set = (to: TrialRating | null) => setTrials((all) => (all.has(commitId) ? new Map(all).set(commitId, { use: trial.use, rating: to }) : all));
+    set(rating);
+    void askTrialRate(trial.use, rating).then((answer) => {
+      if (!answer.ok && alive.current) set(was);
+    });
+  }
   /** Explain's part of its conversation: what an answer changed (the meanings, judged), Panki's notes under it, the chip going to the meanings, Try again sending again. */
   const latestJudging = judgingBefore(conversation)?.id;
   const explainOf: ConversationOf<Judging> = {
@@ -524,7 +564,15 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
       const judging = made.changed[0];
       return judging ? [meaningsChip(judging.meanings, judging.proposed !== null, made.id === latestJudging ? "live" : "replaced")] : [];
     },
-    notes: (made) => notesOf(made, conversation),
+    notes: (made) => {
+      const trial = trials.get(made.id);
+      return (
+        <>
+          {notesOf(made, conversation)}
+          {trial ? <TrialThumbs rating={trial.rating} onRate={(rating) => rateTrial(made.id, trial, rating)} /> : null}
+        </>
+      );
+    },
     canRun: canRun && !busy,
     onRetry: () => {
       if (retry) pressSend(retry, { kind: "retry" });
@@ -547,6 +595,7 @@ function LiveExplain({ found, source, onJudged }: { found: Found; source: Explai
     setRetry(null);
     setReachSet(null);
     setMarks([]);
+    setTrials(new Map());
     gate.cancel();
     counts.current = { runs: 0, messages: 0 };
   }

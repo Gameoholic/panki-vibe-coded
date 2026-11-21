@@ -33,6 +33,7 @@ import {
   RuleId,
   RuleRunAnswer,
   RuleRunAsk,
+  TrialRating,
   SrsType,
   Stretch,
   SubtitleStyle,
@@ -304,6 +305,8 @@ export const Ask = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("rules"), fresh: z.boolean().optional() }),
   /** A rule's run on a trigger the page heard, asked of Panki, which holds its caps and keeps the go or the stop. */
   z.object({ kind: z.literal("ruleRun"), ruleId: RuleId, run: RuleRunAsk }),
+  /** A thumb under an answer of the blind trial, given or taken back (null), by its use (temporary, `promptTrial.ts`). */
+  z.object({ kind: z.literal("trialRate"), use: z.number().int().positive(), rating: TrialRating.nullable() }),
   /**
    * A word pointed at explained by Panki AI, or a follow-up to its answer: the pieces it's asked with and the conversation
    * so far. `stop`, the page's name for it, for a message the person may stop (`aiStop`); none for an automation's.
@@ -750,6 +753,11 @@ export async function askAiState(fresh = false): Promise<AiState> {
 /** The account's rules as the worker keeps them (null signed out); `fresh`, asked of Panki again first. */
 export async function askRules(fresh = false): Promise<RulesState> {
   const answer = RulesState.safeParse(await ask({ kind: "rules", fresh }));
+  return answer.success ? answer.data : failed(answer.error);
+}
+/** A thumb given under an answer of the blind trial, or taken back (null): kept on Panki (temporary, `promptTrial.ts`). */
+export async function askTrialRate(use: number, rating: TrialRating | null): Promise<Done> {
+  const answer = Done.safeParse(await ask({ kind: "trialRate", use, rating }));
   return answer.success ? answer.data : failed(answer.error);
 }
 /** Whether a rule runs on a trigger this page heard: Panki's go, or its stop and why. */

@@ -34,12 +34,11 @@ const AT_START = 0.05;
 
 /**
  * Where a skip by a line lands (`content/youtube.tsx` → `shortSkip`). On, the start of the next line. Back, the start of
- * the line the video is in once it's past that start at all; at the start, the line before. `landed` is where the last
- * skip by a line put the video (null if none): while the video is still in the line that skip landed on the start of,
- * it counts as at the start, though it has played on since, so ← pressed again, or held, walks back line by line.
- * Null where there's no line to go to. `lines` are in order of their start.
+ * the previous line: from anywhere in a line, the line before it; in a gap between lines, the line that just ended, the
+ * previous one there. Each press lands on a line's start, so the next press goes one further back. Null where there's
+ * no line to go to. `lines` are in order of their start.
  */
-export function lineSkipTo(lines: readonly Line[], time: number, back: boolean, landed: number | null): number | null {
+export function lineSkipTo(lines: readonly Line[], time: number, back: boolean): number | null {
   if (!back) return lines.find((line) => line.start > time + AT_START)?.start ?? null;
   let line: Line | null = null;
   let before: Line | null = null;
@@ -49,8 +48,9 @@ export function lineSkipTo(lines: readonly Line[], time: number, back: boolean, 
     line = each;
   }
   if (!line) return null;
-  const atStart = time - line.start <= AT_START || landed === line.start;
-  return atStart ? (before?.start ?? null) : line.start;
+  // A line still being written has no end yet: the video is in it.
+  const inGap = line.end !== null && time >= line.end;
+  return inGap ? line.start : (before?.start ?? null);
 }
 
 /** A line said stays on the picture this long after its last word, as a subtitle lingers (a one-word line flashed by otherwise), unless the next line begins sooner. Seconds. */
