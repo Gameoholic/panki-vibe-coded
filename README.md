@@ -59,3 +59,4 @@ https://www.youtube.com/watch?v=ido7aSi9axA
 Beta feature: Let it generate stories/sentence/reading from all the words in your decks.
 
 
+Ask AI anything: It can even look up your cards and decks. (mcp?)
