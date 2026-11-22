@@ -227,6 +227,31 @@ function stuckWords(video: HTMLVideoElement, player: Element | null): string {
     .join(", ");
 }
 
+/**
+ * The focus kept out of a hidden frame: the site's page in it focuses its own player as it loads (each page opened,
+ * each time it's opened again), which took the focus from the viewer's player and every key with it, the arrows doing
+ * nothing until the page was clicked (the owner, 2026-11-22). The moment it lands there it goes back to what had it,
+ * the page's player when that's gone. Never otherwise: a window left for another goes as it goes. What takes it off.
+ */
+function keepFocusOut(frame: HTMLIFrameElement): () => void {
+  let had: HTMLElement | null = null;
+  const leaving = (e: FocusEvent) => {
+    if (e.target instanceof HTMLElement && e.target !== frame) had = e.target;
+  };
+  const back = () =>
+    setTimeout(() => {
+      if (document.activeElement !== frame) return;
+      const to = had?.isConnected ? had : document.querySelector<HTMLElement>("#movie_player");
+      to?.focus({ preventScroll: true });
+    }, 0);
+  document.addEventListener("focusout", leaving, true);
+  window.addEventListener("blur", back);
+  return () => {
+    document.removeEventListener("focusout", leaving, true);
+    window.removeEventListener("blur", back);
+  };
+}
+
 export function createSilentPlayer(videoId: string, speed: number, use: SilentUse, notes: SilentNotes): SilentPlayer {
   const frame = document.createElement("iframe");
   frame.setAttribute("allow", "autoplay");
@@ -234,6 +259,7 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
   frame.tabIndex = -1;
   frame.title = "Panki";
   frame.style.cssText = frameStyle(use);
+  const focusKept = keepFocusOut(frame);
 
   let video: HTMLVideoElement | null = null;
   let player: Element | null = null;
@@ -730,6 +756,7 @@ export function createSilentPlayer(videoId: string, speed: number, use: SilentUs
       // own page and this frame's both loading then, and doesn't come down for a long while.
       frame.src = "about:blank";
       frame.remove();
+      focusKept();
     },
   };
 }

@@ -34,7 +34,6 @@ import { createWatcher, SAVING_IDLE, type Saving } from "../watch/watcher";
 import { SavingMark } from "../ui/SavingMark";
 import { createFeed } from "./feed";
 import { createPlayerBar } from "./playerBar";
-import { traceKeys } from "./keyTrace";
 import { SUBTITLE_BOUNDS, SUBTITLE_REF_HEIGHT, mapOf, subtitleVars, withinBound, type CardType, type Deck, type SubtitleStyle, type VideoCard } from "@panki/contracts";
 import { PanelMenu, type DownloadMenu } from "../ui/PanelMenu";
 import { createPlayback } from "../download/playback";
@@ -3824,8 +3823,6 @@ function readAgain() {
 
 /** The page's listeners, from `begin` on: each reads this browser's settings, which aren't known before. */
 function listen() {
-  // Before the page's keys, so it sees every arrow, one Panki takes as well (`keyTrace.ts`; off unless switched on).
-  traceKeys(() => video);
   followPlayer();
   // The page's keys, one listener each way: heard before the site's own (the window, capturing), so a key Panki takes
   // is kept from the site.

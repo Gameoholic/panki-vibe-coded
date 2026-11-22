@@ -1,5 +1,5 @@
 /** @panki A line as words to press (`Line`, `LineLook`, `shownWhole`). */
-import { useLayoutEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 import { AiSpark } from "@web/components/AiWaiting";
 import { Button } from "@web/components/Button";
 import { langOf } from "@web/words";
@@ -131,6 +131,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
   // A move the browser sends with the pointer where it was (the words under it changed) isn't one.
   const onMove = (target: EventTarget | null, e: PointerAt) => {
     if (!look || !moved) return;
+    pointerIn.current = true;
     const button = wordAt(target);
     look.move(button ? Number(button.dataset.at) : null, button, e);
   };
@@ -138,6 +139,18 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
   // now stands under the pointer is told (`under`), never pointed at.
   const lookRef = useRef(look);
   lookRef.current = look;
+  /**
+   * Whether the pointer is on this line. Taken off the page with the pointer on it (the subtitles moving on to another
+   * line), the browser says nothing of the pointer leaving, so the line says it itself: unsaid, While the Word pop-up
+   * is open went on holding with nothing open, and the next word pointed at didn't pause the video (the owner, 2026-11-22).
+   */
+  const pointerIn = useRef(false);
+  useEffect(
+    () => () => {
+      if (pointerIn.current) lookRef.current?.leave();
+    },
+    [],
+  );
   useLayoutEffect(() => {
     const el = root.current;
     const at = lastPointer;
@@ -164,6 +177,7 @@ export function Line({ tokens, picked, onPick, now = null, small = false, look =
       }
       onPointerMove={(e) => onMove(e.target, e)}
       onPointerLeave={(e) => {
+        pointerIn.current = false;
         if (!moved) return;
         look?.move(null, null, e);
         look?.leave();
