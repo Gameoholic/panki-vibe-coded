@@ -30,6 +30,12 @@ import { VALUE_MAX } from "./type";
  * its knobs, never more words for what words can't carry: what must come back (`requires`), and how far the video
  * subtitles reach (`seconds`, either place's: a message's reach is the most of its ticked actions', `reachOf`).
  *
+ * The split between a place's prompt and its actions: the prompt (the admin's, `DEFAULT_EXPLAIN_PROMPT`,
+ * `DEFAULT_TOUCH_UP_PROMPT`) holds only what the place needs to work, the pieces, what each part holds and the shape,
+ * and answers well with no action's words at all; how an answer is written and how a field is judged (its length, what
+ * it leaves out, which lines make a good Line) is an action's words, each account's to edit, Panki's own carrying the
+ * stock experience. What holds for every answer of both places is the account's User instructions.
+ *
  * Panki's own actions are one registry (`AI_ACTIONS`), the source of their words. Each account can edit one (its copy
  * stands in its place, by Panki's id), delete one (hidden for it, never destroyed), bring either back as Panki's own, add
  * its own, and set each place's order and the actions ticked as a conversation opens (`accountActions.ts` →
@@ -233,12 +239,20 @@ const TRIAL_ACTIONS: Record<TrialActionId, AiAction> = {
   ),
 };
 export const AI_ACTIONS: Record<PankiActionId, AiAction> = {
-  // What the card's own fields want rides here, not in User instructions, which the word's conversation sends too.
+  // How each field is judged and written rides here, not in the prompt (what each field holds and the shape alone) nor
+  // in User instructions (which the word's conversation sends too), so an account steers it by editing Touch up.
   touchUp: panki(
     {
       place: "card",
       name: "Touch up",
-      words: `Touch up the card. Leave the Explanation empty when the Meaning and the sentence already show it all, and keep it to a few words otherwise. Three example sentences, each short, everyday, and nothing to do with the video. ${QUIET_REPLY}`,
+      words: `Touch up the card.
+Judge the Line as if you didn't know the word: from what's said in its lines alone, could someone work out what the word means here, months from now, without the video or a dictionary? Not whether the sentence is complete: a complete sentence can still give no clue.
+- Too little: a line before or after it shows the meaning. Often a reaction with what it reacts to, a question with its answer (or an answer with its question), the reason, contrast or result that makes the word clear, a line opening on a connective (でも, だから, それで) or pointing back (これ, それ, そう). Add the lines that show it, as few as do it.
+- Too much: a whole line that adds nothing to the word (another speaker's unrelated words, a filler or an opener, the start of something else). Take it off.
+- Under 10 seconds is the aim; 10 to 30 only when the lines that show the meaning take that long; over 30 almost never. Lines that already show the meaning need nothing added: never add lines just to be safe.
+Leave the Explanation empty when the Meaning and the Line already show it all, and keep it to a few words otherwise.
+Three example sentences, each short and everyday, nothing to do with the video, each situation a few words.
+${QUIET_REPLY}`,
       requires: TOUCH_UP_KEYS,
     },
     "touchUp",

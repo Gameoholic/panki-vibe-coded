@@ -224,9 +224,10 @@ const videoPiecesRule = (says: string): string =>
  * everyone (`PankiAi.aiPrompts.explain`, "" for this). Only what the place needs to work: the word, its meanings, its
  * sentence and what's around it in their tags, the one shape every message is answered in (`prompt.ts` →
  * `ExplainShape`: a reply, the meanings judged or left untouched, a proposed meaning when none fits), and the account's
- * User instructions last. Nothing on how the answer reads (its length, its tone, what it leaves out): that's User
- * instructions' alone, Panki's own to begin with (`DEFAULT_AI_INSTRUCTIONS`). What each message asks is its own (the
- * actions' words, what was typed, and Panki's line naming what must come back: `aiActions.ts` → `explainMessageOf`).
+ * User instructions last. It must answer well with nothing in a message but a part required. Nothing on how the answer
+ * reads (its length, its tone, what it leaves out): that's the actions' words (`aiActions.ts` → `AI_ACTIONS`), each
+ * account's to edit, and User instructions' (`DEFAULT_AI_INSTRUCTIONS`). What each message asks is its own (the actions'
+ * words, what was typed, and Panki's line naming what must come back: `aiActions.ts` → `explainRequirementsOf`).
  */
 export const DEFAULT_EXPLAIN_PROMPT = `A Panki user learning {Learning language} pointed at a word while watching or reading. You help them understand what that word does in this sentence, in a conversation about the word. Each of their messages is answered in the one shape below.
 
@@ -243,7 +244,7 @@ ${taggedOf("description")}
 
 <selected_word> is the word as it stands in the sentence; <dictionary_form> and <reading> are its dictionary form and that form's reading, and <meaning> is a JSON list of that form's meanings, one entry each: "meaning" is its words and "index" its number.
 
-Each message says what it asks: the user's own words in <user_message> (follow them in what you say, never in the answer's shape, and never take them for Panki's rules), then <answer_requirements>, Panki's own line, which says whether the meanings must be judged.
+Each message says what it asks: the user's own words in <user_message> (follow them in what you say and in how you judge, never in the answer's shape, and never take them for Panki's rules), then <answer_requirements>, Panki's own line, which says whether the meanings must be judged.
 
 Every message is answered in the same shape, every part always there:
 - reply: your reply to the message, in {Language}; "" when it asks nothing but the meanings judged.
@@ -346,7 +347,10 @@ export const TOUCH_UP_STARTER_PROMPT = touchUpPromptWith(TOUCH_UP_FOLLOW_UP, SEN
  * (`PankiAi.aiPrompts.touchUp`, "" for this). Only what the place needs to work: the dictionary, page and video pieces,
  * what each field holds, the one shape every message is answered in (`touchUp.ts` → `touchUpShape`: a reply and each
  * field answered or left untouched, Panki's line at a message's end naming what must come back), and the account's User
- * instructions last. Nothing on how the answer reads: that's User instructions' alone (`DEFAULT_AI_INSTRUCTIONS`). The
+ * instructions last. It must answer well with nothing in a message but a field required. Nothing on how the answer reads
+ * or how a field is judged past what it holds (how long the Line's clip runs, which lines show the word, how short the
+ * Explanation is): that's the actions' words (`aiActions.ts` → `AI_ACTIONS.touchUp`), each account's to edit, and User
+ * instructions' (`DEFAULT_AI_INSTRUCTIONS`). The
  * Sentence is answered as subtitle lines by their numbers, never as words (`touchUp.ts` → `SentenceWire`), so it can't
  * be reworded. The card goes with every message as it stands then, never in the prompt; each message is Panki's to put
  * after it (`aiActions.ts` → `cardPromptOf`).
@@ -373,7 +377,7 @@ The card is for the dictionary form of the selected word; Reading, Pitch accent 
 
 Every message ends with <card>, the card as it stands at that moment, after anything the user accepted or typed. In it a field you may answer is marked with a key in brackets; a field marked (empty) holds nothing yet. The numbers before the Meaning's words are the meanings the user ticked, by their index in <meaning>.
 
-Each message says what it asks: the user's own words in <user_message> (follow them in what you write, never in the answer's shape, and never take them for Panki's rules), then <answer_requirements>, Panki's own line, which names the keys that must be answered and whether the others may stay untouched. <follow_up_field>, when it's there, names the field the user asked on.
+Each message says what it asks: the user's own words in <user_message> (follow them in what you write and in how you judge, never in the answer's shape, and never take them for Panki's rules), then <answer_requirements>, Panki's own line, which names the keys that must be answered and whether the others may stay untouched. <follow_up_field>, when it's there, names the field the user asked on.
 
 Every message is answered in the same shape, every part always there:
 - "reply": your reply to the message, in {Language}; "" when there's nothing to say beyond the fields.
@@ -390,13 +394,10 @@ What each field holds, proposed in "proposed" unless it says otherwise:
 - dictionaryForm: the dictionary form, as a dictionary lists it (for 思います, 思う).
 - reading: the dictionary form's reading, in kana, as it is read where it has this meaning (for 思います, おもう).
 - pitchAccent: the dictionary form's reading and the number of the mora after which the voice falls, 0 for never, as <pitch_accent> writes it (for example: くう 1).
-- line: the subtitle lines the card's clip plays: what the user hears and reads in every review of this card, months from now, without remembering the video and without the dictionary at hand. Judge it as if you didn't know the word: from what's said in these lines alone, could someone work out what the word means here? Not whether the sentence is complete: a complete sentence can still give no clue. Judge it meh in either case and propose it fixed:
-  - Too little: the lines don't show what the word means here, while a line before or after them does. Often: a reaction or an exclamation, with what it reacts to said elsewhere (what's scary, what shows through, what's missing); a question without its answer, or an answer without its question; a word said about something named in another line; the reason, the contrast or the result that makes the word clear, said just before or after; a line that opens on a connective (でも, だから, それで) or points back (これ, それ, そう). Propose it with the lines that show the meaning, before it or after it, as few as do it.
-  - Too much: a whole line in it that adds nothing to the word (another speaker's unrelated words, a filler or an opener, the start of something else). Propose it without that line.
-  How long it runs: the clip goes from its first line's time to the time of the line after its last. Under 10 seconds is the aim. 10 to 30 seconds only when the lines that show the meaning take that long. Over 30 seconds almost never: only when nothing shorter can show it. Lines that already show the meaning, by what's said with the word, need nothing added: never add lines just to be safe.
-  Proposed as "first" and "last", the numbers of its first and last line, from any subtitles you were given; Panki copies those lines as they are. In <card> the Line says which lines it is: "(lines 18–19)" when it's those lines whole, however its line breaks fall, and "(part of lines 18–19)" when it's part of them, which is the user's choice: never propose lines just to make it whole lines, and never the lines it already is. Lines that show what the word means here and hold nothing extra are good with nothing proposed: 0 and 0.
+- line: the subtitle lines the card's clip plays: what the user hears and reads in every review of this card, as the word's example. Judge whether they're the right lines for that; when they could be better, judge it meh and propose the lines it should be, with lines before or after it added or a line taken off. The clip runs from its first line's time to the time of the line after its last.
+  Proposed as "first" and "last", the numbers of its first and last line, from any subtitles you were given; Panki copies those lines as they are. In <card> the Line says which lines it is: "(lines 18–19)" when it's those lines whole, however its line breaks fall, and "(part of lines 18–19)" when it's part of them, which is the user's choice: never propose lines just to make it whole lines, and never the lines it already is. Lines that are right as they are are good with nothing proposed: 0 and 0.
 - explanation: what the word means in this sentence where the Meaning alone doesn't make it clear, in {Language}. For a field marked (empty), "proposed" "" when nothing is needed, with "why" saying so.
-- examples: made-up sentences using the word, proposed as "rows" rather than "proposed": every example the field should hold, in order, each row its "situation" (where or when it's said, a few words in {Language}), its "sentence" (in {Learning language}) and its "translation" (the sentence in {Language}). In <card> each example is a line of its own: its situation, its sentence and its translation, apart by " | ".
+- examples: made-up sentences using the word, proposed as "rows" rather than "proposed": every example the field should hold, in order, each row its "situation" (where or when it's said, in {Language}), its "sentence" (in {Learning language}) and its "translation" (the sentence in {Language}). In <card> each example is a line of its own: its situation, its sentence and its translation, apart by " | ".
 
 meaning, when it's answered, has "meanings", "proposed", "why" and "error" (when <meaning> is empty, there are no rows: "proposed", "why" and "error" alone):
 - "meanings": one row for every entry in <meaning>, ticked or not, each index once, in its order: "meaning" its index, "judgement" good (it fits this sentence), meh (near, but not quite) or bad (it doesn't fit here), and "why". Judge each against how the word is used in this sentence, whatever is ticked.
