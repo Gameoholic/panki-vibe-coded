@@ -1015,7 +1015,7 @@ export const WIDGETS: readonly TileEntry[] = [
     id: "added",
     name: "Added",
     home: true,
-    windows: ["days7", "days30", "months12", "all"],
+    windows: ["today", "days7", "days30", "months12", "all"],
     window: "days30",
     views: [
       { id: "time", label: "Until today" },
